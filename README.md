@@ -13,6 +13,16 @@ Aplikasi desktop **Administrasi Proyek Konstruksi** — pencatatan kas harian, r
 - **Laporan** — export Excel (Monthly Report) & PDF
 - **Shortcut** — `Ctrl+N` buka nota baru, `Ctrl+Enter` simpan, `Escape` tutup modal
 
+## Tampilan
+
+![Home](tests/ui-visual.spec.js-snapshots/home-win32.png)
+![Overview](tests/ui-visual.spec.js-snapshots/overview-win32.png)
+![Daily Cashflow](tests/ui-visual.spec.js-snapshots/cashflow-win32.png)
+![Balance Sheet](tests/ui-visual.spec.js-snapshots/balancesheet-win32.png)
+![Desk](tests/ui-visual.spec.js-snapshots/desk-win32.png)
+![Projek](tests/ui-visual.spec.js-snapshots/projek-win32.png)
+![Master Data](tests/ui-visual.spec.js-snapshots/master-suplier-win32.png)
+
 ## Teknologi
 
 Electron 43 · React 19 · TypeScript 7 · electron-vite 5 · Tailwind CSS 4 · sql.js 1.14 · zustand · pdfkit · xlsx · adm-zip
