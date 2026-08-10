@@ -15,6 +15,7 @@
     "test:flow": "node tests/ux-seed.js && playwright test tests/ui-flow.spec.js",
     "test:visual": "node tests/ux-seed.js && playwright test tests/ui-visual.spec.js",
     "test:visual:update": "node tests/ux-seed.js && playwright test tests/ui-visual.spec.js --update-snapshots",
+    "test:all": "npm run typecheck && npm run build && npm run test:ui && npm run test:flow && npm run test:visual",
     "dist:win": "electron-vite build && electron-builder --win",
     "gen:icon": "node scripts/gen-icon.mjs"
   },
