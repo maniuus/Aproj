@@ -58,6 +58,26 @@ Mengikuti **semantic versioning**:
    ```
 4. GitHub Actions otomatis: typecheck + build + packaging installer → draft release di halaman Releases → isi catatan rilis → publish.
 
+## Perubahan skema database
+
+Workspace pengguna (`*.apro/project.db`) **sudah ada sebelum update** — jangan pernah merusaknya. Tiga lapis yang dijalankan `openWorkspace()` di `src/main/index.ts`:
+
+1. `db.exec(SCHEMA)` — semua `CREATE TABLE IF NOT EXISTS` (tabel lama tidak disentuh).
+2. `runMigrations()` — `migrateColumns()` → `ALTER TABLE ... ADD COLUMN` untuk kolom baru, plus migrasi data.
+3. `saveDB()` — hasil migrasi langsung tersimpan.
+
+**Aturan emas:**
+
+- **Jangan pernah** menambah kolom/tabel baru hanya dengan mengubah isi `CREATE TABLE` di konstanta `SCHEMA` — `IF NOT EXISTS` tidak mengubah tabel yang sudah terlanjur dibuat. DB lama tidak akan dapat kolom itu.
+- Tambahan kolom **selalu lewat `migrateColumns()`** di `runMigrations()`:
+  ```ts
+  migrateColumns('projects', [['notes', 'TEXT']])
+  ```
+- Tabel baru cukup di `SCHEMA` (`CREATE TABLE IF NOT EXISTS`) — DB lama otomatis dapat tabel tersebut.
+- Perubahan yang berisiko (rename kolom, ubah constraint, restrukturisasi) pola amannya: **buat tabel baru → `INSERT INTO ... SELECT` → rename/drop tabel lama** — semua di dalam `runMigrations()`, eksekusi hanya saat kolom/tabel belum ada.
+- Setiap perubahan skema wajib diuji dengan **workspace lama**: buka backup `.aproj.zip` dari versi sebelumnya → pastikan data tetap terbaca dan fitur baru berfungsi. (Gunakan seed/backup versi lama di `tests/`.)
+- Tambahkan baris entry migrasi di `90-meta/changelog.md` proyek agar riwayat skema terlacak.
+
 ## Menambahkan dependensi
 
 Repo memakai `npm install --legacy-peer-deps` (konflik peer vite vs electron-vite):
