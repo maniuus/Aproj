@@ -1,0 +1,31 @@
+appId: com.architech.aproj
+productName: archiTech
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**/*
+  - package.json
+  - "!tests/**"
+  - "!test-results/**"
+  - "!playwright.config.js"
+  - "!scripts/**"
+asar: true
+win:
+  executableName: aproj
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: archiTech
+  artifactName: ${productName}-${version}-Setup.${ext}
+  uninstallDisplayName: ${productName}
+publish: null
+npmRebuild: false
