@@ -76,7 +76,7 @@ async function main() {
   })
 
   const JENIS = ['keluar-material', 'keluar-lain', 'masuk', 'keluar-pekerjaan']
-  const stmtNota = db.prepare(`INSERT INTO notas (id, date, project_id, suplier_id, jenis, rekening, keterangan, total, payment_status) VALUES (?, ?, ?, ?, ?, 'proyek', ?, ?, ?)`)
+  const stmtNota = db.prepare(`INSERT INTO notas (id, date, project_id, suplier_id, jenis, rekening, keterangan, total, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
   const stmtItem = db.prepare(`INSERT INTO nota_items (id, nota_id, item_type, item_id, name, unit, price, qty, subtotal, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`)
 
   let nId = 0
@@ -87,8 +87,9 @@ async function main() {
     const day = Math.max(1, (now.getDate() - i) % 28)
     const date = `${today.slice(0, 8)}${pad(day)}`
     const suplier = jenis === 'keluar-material' ? suplierId : null
+    const rekening = jenis === 'masuk' ? 'global' : 'proyek'
     const total = jenis === 'keluar-material' ? 65000 * (1 + (i % 5)) : jenis === 'masuk' ? 5000000 : 150000
-    stmtNota.run([id, date, prj, suplier, jenis, `Nota uji #${i + 1}`, total, i % 3 === 0 ? 'hutang' : 'terbayar'])
+    stmtNota.run([id, date, prj, suplier, jenis, rekening, `Nota uji #${i + 1}`, total, i % 3 === 0 ? 'hutang' : 'terbayar'])
     nId++
     if (jenis === 'keluar-material') {
       const mat = mats[i % 3]

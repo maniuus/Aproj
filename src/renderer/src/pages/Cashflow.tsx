@@ -14,6 +14,7 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
   const [loading, setLoading] = useState(false)
   const [confirmDel, setConfirmDel] = useState<Nota | null>(null)
   const [summary, setSummary] = useState({ outflow: 0, inflow: 0, count: 0 })
+  const [saldoGlobal, setSaldoGlobal] = useState(0)
   const [showNota, setShowNota] = useState(false)
   const [from, setFrom] = useState<'workspace' | 'project'>('workspace')
   const [editNota, setEditNota] = useState<{ id: string; date: string; project_id: string | null; suplier_id: string | null; jenis: string; keterangan: string | null; payment_status?: string } | null>(null)
@@ -42,6 +43,10 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
       .summary({})
       .then((s) => setSummary({ outflow: s.outflow, inflow: s.inflow, count: s.count }))
       .catch((e) => onToast(`Gagal memuat ringkasan: ${errMsg(e)}`))
+    window.electronAPI.finance
+      .globalSaldo()
+      .then(setSaldoGlobal)
+      .catch((e) => onToast(`Gagal memuat saldo global: ${errMsg(e)}`))
   }
 
   useEffect(reload, [page])
@@ -127,7 +132,7 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
   return (
     <div>
       <div className="grid grid-cols-3 gap-4 mb-5">
-        <StatCard label="Saldo Global" value={fmtRupiah(0)} sub="dari rekening global" />
+        <StatCard label="Saldo Global" value={fmtRupiah(saldoGlobal)} sub="dari rekening global" />
         <StatCard label="Outflow Periode" value={fmtRupiah(summary.outflow)} negative sub={`${summary.count} nota terpantau`} />
         <StatCard label="Inflow Periode" value={fmtRupiah(summary.inflow)} positive sub="semua projek" />
       </div>

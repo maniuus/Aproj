@@ -749,7 +749,7 @@ ipcMain.handle('finance:summary', async (_e, opts: { start?: string; end?: strin
 
 ipcMain.handle('finance:project', (_e, projectId: string) => {
   const outflow = one(
-    `SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE project_id = ? AND jenis LIKE 'keluar%'`,
+    `SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE project_id = ? AND jenis LIKE 'keluar%' AND rekening = 'proyek'`,
     [projectId]
   )
   const inflow = one(
@@ -792,9 +792,12 @@ ipcMain.handle('finance:project', (_e, projectId: string) => {
 })
 
 ipcMain.handle('finance:globalSaldo', () => {
-  // saldo global = semua masuk ke global (nota masuk + transfer masuk) − keluar dari global (nota tanpa projek + transfer keluar)
-  const inNotas = one(`SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE jenis = 'masuk'`, [])
-  const outNotas = one(`SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE project_id IS NULL AND jenis LIKE 'keluar%'`, [])
+  // saldo global = masuk ke rekening global (nota masuk TANPA projek + transfer masuk) − keluar dari rekening global
+  // (nota keluar dengan rekening 'global' + transfer keluar)
+  // Catatan: nota masuk yang terikat projek dihitung sebagai inflow rekening projek (finance:project), bukan global —
+  // supaya tidak double-count di Total Aset (BalanceSheet).
+  const inNotas = one(`SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE jenis = 'masuk' AND project_id IS NULL`, [])
+  const outNotas = one(`SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE rekening = 'global' AND jenis LIKE 'keluar%'`, [])
   const tIn = one(`SELECT COALESCE(SUM(jumlah), 0) AS v FROM transfers WHERE ke = 'global'`, [])
   const tOut = one(`SELECT COALESCE(SUM(jumlah), 0) AS v FROM transfers WHERE dari = 'global'`, [])
   return Number(inNotas?.v ?? 0) + Number(tIn?.v ?? 0) - Number(outNotas?.v ?? 0) - Number(tOut?.v ?? 0)
