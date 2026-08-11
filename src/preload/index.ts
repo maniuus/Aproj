@@ -49,7 +49,7 @@ const api = {
     count: (opts: Row) => ipcRenderer.invoke('nota:count', opts),
     items: (notaId: string) => ipcRenderer.invoke('nota:items', notaId),
     remove: (notaId: string) => ipcRenderer.invoke('nota:delete', notaId),
-    setPayment: (notaId: string, status: string) => ipcRenderer.invoke('nota:setPayment', notaId, status)
+    setPayment: (notaId: string, status: string, paidAt?: string | null) => ipcRenderer.invoke('nota:setPayment', notaId, status, paidAt)
   },
   photo: {
     stage: (): Promise<{ fileName: string; dataUrl: string }[]> => ipcRenderer.invoke('photo:stage'),

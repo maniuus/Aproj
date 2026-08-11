@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS kebutuhans (
 CREATE TABLE IF NOT EXISTS notas (
   id TEXT PRIMARY KEY, date TEXT NOT NULL, project_id TEXT, suplier_id TEXT, subkon_id TEXT,
   jenis TEXT NOT NULL, rekening TEXT DEFAULT 'proyek', keterangan TEXT, total INTEGER DEFAULT 0,
-  payment_status TEXT DEFAULT 'terbayar',
+  payment_status TEXT DEFAULT 'terbayar', paid_at TEXT,
   created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS nota_items (
@@ -221,7 +221,8 @@ function runMigrations() {
   })
   migrateColumns('notas', [
     ['payment_status', "TEXT DEFAULT 'terbayar'"],
-    ['subkon_id', 'TEXT']
+    ['subkon_id', 'TEXT'],
+    ['paid_at', 'TEXT']
   ])
   saveDB()
 }
@@ -538,9 +539,11 @@ ipcMain.handle('nota:add', async (_e, data: {
 }) => {
   const id = uuid()
   const total = data.items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0)
+  const payStatus = data.payment_status || 'terbayar'
+  const paidAt = payStatus === 'terbayar' ? data.date : null
   db!.run(
-    `INSERT INTO notas (id, date, project_id, suplier_id, subkon_id, jenis, rekening, keterangan, total, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.date, data.project_id, data.suplier_id, data.subkon_id, data.jenis, data.rekening, data.keterangan, total, data.payment_status || 'terbayar']
+    `INSERT INTO notas (id, date, project_id, suplier_id, subkon_id, jenis, rekening, keterangan, total, payment_status, paid_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.date, data.project_id, data.suplier_id, data.subkon_id, data.jenis, data.rekening, data.keterangan, total, payStatus, paidAt]
   )
   data.items.forEach((item, i) => {
     db!.run(
@@ -596,8 +599,11 @@ ipcMain.handle('nota:delete', (_e, notaId: string) => {
   return true
 })
 
-ipcMain.handle('nota:setPayment', (_e, notaId: string, status: string) => {
-  db!.run(`UPDATE notas SET payment_status = ?, updated_at = datetime('now') WHERE id = ?`, [status, notaId])
+ipcMain.handle('nota:setPayment', (_e, notaId: string, status: string, paidAt?: string | null) => {
+  const row = one('SELECT date, payment_status FROM notas WHERE id = ?', [notaId])
+  if (!row) return false
+  const paid = status === 'terbayar' ? (paidAt || String(row.date)) : null
+  db!.run(`UPDATE notas SET payment_status = ?, paid_at = ?, updated_at = datetime('now') WHERE id = ?`, [status, paid, notaId])
   saveDB()
   return true
 })
@@ -688,9 +694,11 @@ ipcMain.handle('nota:update', async (_e, notaId: string, data: {
   items: { item_type: string; item_id: string | null; name: string; unit: string; price: number; qty: number; subtotal: number }[]
 }) => {
   const total = data.items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0)
+  const payStatus = data.payment_status || 'terbayar'
+  const paidAt = payStatus === 'terbayar' ? data.date : null
   db!.run(
-    `UPDATE notas SET date = ?, project_id = ?, suplier_id = ?, subkon_id = ?, jenis = ?, rekening = ?, keterangan = ?, total = ?, payment_status = ?, updated_at = datetime('now') WHERE id = ?`,
-    [data.date, data.project_id, data.suplier_id, data.subkon_id, data.jenis, data.rekening, data.keterangan, total, data.payment_status || 'terbayar', notaId]
+    `UPDATE notas SET date = ?, project_id = ?, suplier_id = ?, subkon_id = ?, jenis = ?, rekening = ?, keterangan = ?, total = ?, payment_status = ?, paid_at = ?, updated_at = datetime('now') WHERE id = ?`,
+    [data.date, data.project_id, data.suplier_id, data.subkon_id, data.jenis, data.rekening, data.keterangan, total, payStatus, paidAt, notaId]
   )
   db!.run('DELETE FROM nota_items WHERE nota_id = ?', [notaId])
   data.items.forEach((item, i) => {
@@ -726,20 +734,32 @@ ipcMain.handle('transfer:delete', (_e, id: string) => {
 // ---------------------------------------------------------------- IPC: finance summaries
 
 ipcMain.handle('finance:summary', async (_e, opts: { start?: string; end?: string; projectId?: string | null }) => {
-  const where: string[] = []
-  const params: SqlValue[] = []
-  if (opts.start) { where.push('n.date >= ?'); params.push(opts.start) }
-  if (opts.end) { where.push('n.date <= ?'); params.push(opts.end) }
-  if (opts.projectId) { where.push('n.project_id = ?'); params.push(opts.projectId) }
-  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : ''
-
-  const totalQ = one(
-    `SELECT COALESCE(SUM(CASE WHEN n.jenis LIKE 'keluar%' THEN n.total ELSE 0 END), 0) AS outflow,
-            COALESCE(SUM(CASE WHEN n.jenis = 'masuk' THEN n.total ELSE 0 END), 0) AS inflow,
-            COUNT(*) AS count
-     FROM notas n ${whereSql}`,
-    params
-  )
+  // BASIS KAS: outflow hanya nota yang sudah terbayar, dihitung pada tanggal kas keluar
+  // (COALESCE(paid_at, date)) — nota hutang belum mengurangi sampai dibayar.
+  const ofWhere: string[] = [`n.jenis LIKE 'keluar%'`, `n.payment_status = 'terbayar'`]
+  const inWhere: string[] = [`n.jenis = 'masuk'`]
+  const ctWhere: string[] = []
+  const ofP: SqlValue[] = []
+  const inP: SqlValue[] = []
+  const ctP: SqlValue[] = []
+  if (opts.start) {
+    ofWhere.push(`COALESCE(n.paid_at, n.date) >= ?`); ofP.push(opts.start)
+    inWhere.push(`n.date >= ?`); inP.push(opts.start)
+    ctWhere.push(`n.date >= ?`); ctP.push(opts.start)
+  }
+  if (opts.end) {
+    ofWhere.push(`COALESCE(n.paid_at, n.date) <= ?`); ofP.push(opts.end)
+    inWhere.push(`n.date <= ?`); inP.push(opts.end)
+    ctWhere.push(`n.date <= ?`); ctP.push(opts.end)
+  }
+  if (opts.projectId) {
+    ofWhere.push('n.project_id = ?'); ofP.push(opts.projectId)
+    inWhere.push('n.project_id = ?'); inP.push(opts.projectId)
+    ctWhere.push('n.project_id = ?'); ctP.push(opts.projectId)
+  }
+  const outflow = one(`SELECT COALESCE(SUM(n.total), 0) AS v FROM notas n WHERE ${ofWhere.join(' AND ')}`, ofP)
+  const inflow = one(`SELECT COALESCE(SUM(n.total), 0) AS v FROM notas n WHERE ${inWhere.join(' AND ')}`, inP)
+  const count = one(`SELECT COUNT(*) AS c FROM notas n WHERE ${ctWhere.length ? ctWhere.join(' AND ') : '1=1'}`, ctP)
   const totalT = one(
     `SELECT COALESCE(SUM(CASE WHEN t.dari = 'global' THEN t.jumlah ELSE 0 END), 0) AS global_out,
             COALESCE(SUM(CASE WHEN t.ke = 'global' THEN t.jumlah ELSE 0 END), 0) AS global_in
@@ -747,9 +767,9 @@ ipcMain.handle('finance:summary', async (_e, opts: { start?: string; end?: strin
     []
   )
   return {
-    outflow: Number(totalQ?.outflow ?? 0),
-    inflow: Number(totalQ?.inflow ?? 0),
-    count: Number(totalQ?.count ?? 0),
+    outflow: Number(outflow?.v ?? 0),
+    inflow: Number(inflow?.v ?? 0),
+    count: Number(count?.c ?? 0),
     transferGlobalOut: Number(totalT?.global_out ?? 0),
     transferGlobalIn: Number(totalT?.global_in ?? 0)
   }
@@ -757,7 +777,7 @@ ipcMain.handle('finance:summary', async (_e, opts: { start?: string; end?: strin
 
 ipcMain.handle('finance:project', (_e, projectId: string) => {
   const outflow = one(
-    `SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE project_id = ? AND jenis LIKE 'keluar%' AND rekening = 'proyek'`,
+    `SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE project_id = ? AND jenis LIKE 'keluar%' AND rekening = 'proyek' AND payment_status = 'terbayar'`,
     [projectId]
   )
   const inflow = one(
@@ -805,7 +825,7 @@ ipcMain.handle('finance:globalSaldo', () => {
   // Catatan: nota masuk yang terikat projek dihitung sebagai inflow rekening projek (finance:project), bukan global —
   // supaya tidak double-count di Total Aset (BalanceSheet).
   const inNotas = one(`SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE jenis = 'masuk' AND project_id IS NULL`, [])
-  const outNotas = one(`SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE rekening = 'global' AND jenis LIKE 'keluar%'`, [])
+  const outNotas = one(`SELECT COALESCE(SUM(total), 0) AS v FROM notas WHERE rekening = 'global' AND jenis LIKE 'keluar%' AND payment_status = 'terbayar'`, [])
   const tIn = one(`SELECT COALESCE(SUM(jumlah), 0) AS v FROM transfers WHERE ke = 'global'`, [])
   const tOut = one(`SELECT COALESCE(SUM(jumlah), 0) AS v FROM transfers WHERE dari = 'global'`, [])
   return Number(inNotas?.v ?? 0) + Number(tIn?.v ?? 0) - Number(outNotas?.v ?? 0) - Number(tOut?.v ?? 0)

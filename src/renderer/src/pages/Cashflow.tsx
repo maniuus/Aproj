@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../stores'
-import { Card, CardBody, StatCard, EmptyNote, GhostButton, Badge, Confirm } from '../components/ui'
+import { Card, CardBody, StatCard, EmptyNote, GhostButton, Badge, Confirm, Modal, PrimaryButton, DateInput } from '../components/ui'
 import { fmtRupiah, fmtDate, isKeluar, jenisLabel, todayISO, errMsg } from '../lib/utils'
 import NotaModal, { type NotaPayload } from '../components/NotaModal'
 import type { Nota } from '../env.d'
@@ -13,6 +13,8 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(false)
   const [confirmDel, setConfirmDel] = useState<Nota | null>(null)
+  const [payNota, setPayNota] = useState<Nota | null>(null)
+  const [payDate, setPayDate] = useState(todayISO())
   const [summary, setSummary] = useState({ outflow: 0, inflow: 0, count: 0 })
   const [saldoGlobal, setSaldoGlobal] = useState(0)
   const [showNota, setShowNota] = useState(false)
@@ -100,6 +102,18 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
       reload()
     } catch (e) {
       onToast(`Gagal menghapus nota: ${errMsg(e)}`)
+    }
+  }
+
+  const confirmPay = async () => {
+    if (!payNota) return
+    try {
+      await window.electronAPI.nota.setPayment(payNota.id, 'terbayar', payDate || todayISO())
+      setPayNota(null)
+      onToast('Nota ditandai terbayar')
+      reload()
+    } catch (e) {
+      onToast(`Gagal menandai terbayar: ${errMsg(e)}`)
     }
   }
 
@@ -196,9 +210,13 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     {isKeluar(n.jenis) && (
                       <button
-                        onClick={async () => {
-                          await window.electronAPI.nota.setPayment(n.id, n.payment_status === 'hutang' ? 'terbayar' : 'hutang')
-                          reload()
+                        onClick={() => {
+                          if (n.payment_status === 'hutang') {
+                            setPayNota(n)
+                            setPayDate(todayISO())
+                          } else {
+                            window.electronAPI.nota.setPayment(n.id, 'hutang').then(reload)
+                          }
                         }}
                         className="text-xs text-amber-600 hover:text-amber-700 mr-2"
                         title={n.payment_status === 'hutang' ? 'Tandai terbayar' : 'Tandai hutang'}
@@ -267,6 +285,28 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
         onCancel={() => setConfirmDel(null)}
         onConfirm={doDelete}
       />
+
+      <Modal
+        open={!!payNota}
+        onClose={() => setPayNota(null)}
+        title="Tandai Terbayar"
+        sub={`${payNota ? fmtRupiah(payNota.total) : ''} · ${payNota ? payNota.keterangan || payNota.suplier_name || '' : ''}`}
+        footer={
+          <>
+            <span className="flex-1" />
+            <GhostButton onClick={() => setPayNota(null)}>Batal</GhostButton>
+            <PrimaryButton onClick={confirmPay}>Simpan</PrimaryButton>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <label className="block">
+            <span className="block text-xs text-zinc-500 mb-1">Tanggal pembayaran</span>
+            <DateInput value={payDate} onChange={setPayDate} placeholder="dd/mm/yy" />
+          </label>
+          <p className="text-xs text-zinc-500">Saldo rekening proyek baru berkurang pada tanggal ini.</p>
+        </div>
+      </Modal>
     </div>
   )
 }

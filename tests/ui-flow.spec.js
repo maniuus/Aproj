@@ -57,6 +57,11 @@ function tomorrowDmy() {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`
 }
 
+function dmyToIso(dmy) {
+  const [dd, mm, yy] = dmy.split('/').map(Number)
+  return `${2000 + yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+}
+
 function rowOf(name) {
   return win.getByPlaceholder(name).locator('..').locator('..')
 }
@@ -333,5 +338,27 @@ test.describe('user flow: uraian menampilkan deskripsi item (#21)', () => {
     await openCashflow()
     const firstRow = win.locator('tbody tr').first()
     await expect(firstRow).toContainText('Semen 50kg')
+  })
+})
+
+test.describe('user flow: basis kas — tandai hutang terbayar dengan tanggal (#25)', () => {
+  test('klik ✓ Bayar → isi tanggal pembayaran → status terbayar + paid_at tersimpan', async () => {
+    await openCashflow()
+
+    const before = await win.evaluate(() => window.electronAPI.nota.list({ limit: 1 }))
+    expect(before[0].payment_status).toBe('hutang')
+
+    const hutangRow = win.locator('tbody tr', { hasText: 'Hutang' }).first()
+    await hutangRow.getByText('✓ Bayar').click()
+    await win.getByText('Tandai Terbayar').waitFor({ timeout: 5000 })
+
+    const payDate = tomorrowDmy()
+    await win.getByPlaceholder('dd/mm/yy').fill(payDate)
+    await win.getByText('Simpan', { exact: true }).last().click()
+    await win.getByText('Nota ditandai terbayar').waitFor({ timeout: 5000 })
+
+    const after = await win.evaluate(() => window.electronAPI.nota.list({ limit: 1 }))
+    expect(after[0].payment_status).toBe('terbayar')
+    expect(after[0].paid_at).toBe(dmyToIso(payDate))
   })
 })

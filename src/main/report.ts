@@ -60,10 +60,18 @@ function buildReportData(opts: ReportOpts, all: (sql: string, params?: SqlValue[
     where.push('n.project_id = ?')
     params.push(opts.projectId ?? '')
   } else {
-    if (opts.start) { where.push('n.date >= ?'); params.push(opts.start) }
-    if (opts.end) { where.push('n.date <= ?'); params.push(opts.end) }
+    if (opts.start) {
+      where.push("CASE WHEN n.jenis = 'masuk' THEN n.date ELSE COALESCE(n.paid_at, n.date) END >= ?")
+      params.push(opts.start)
+    }
+    if (opts.end) {
+      where.push("CASE WHEN n.jenis = 'masuk' THEN n.date ELSE COALESCE(n.paid_at, n.date) END <= ?")
+      params.push(opts.end)
+    }
     if (opts.projectId) { where.push('n.project_id = ?'); params.push(opts.projectId) }
   }
+  // basis kas: nota keluar hanya dihitung saat sudah terbayar
+  where.push("(n.jenis = 'masuk' OR n.payment_status = 'terbayar')")
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
   const notas = all(
