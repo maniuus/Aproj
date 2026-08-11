@@ -25,6 +25,7 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
   const [editNota, setEditNota] = useState<{ id: string; date: string; project_id: string | null; suplier_id: string | null; subkon_id?: string | null; jenis: string; keterangan: string | null; payment_status?: string } | null>(null)
   const [editItems, setEditItems] = useState<{ item_type: string; item_id: string | null; name: string; unit: string; price: number; qty: number; subtotal: number }[]>([])
   const [showTransfer, setShowTransfer] = useState(false)
+  const [fullFormat, setFullFormat] = useState<'xlsx' | 'pdf'>('xlsx')
   const [needTab, setNeedTab] = useState<'material' | 'tenaga' | 'alat'>('material')
   const [needRows, setNeedRows] = useState<MasterRow[]>([])
   const [showNeed, setShowNeed] = useState(false)
@@ -292,9 +293,9 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
 
   const exportFullReport = async () => {
     if (!project) return
-    const res = await window.electronAPI.report.export({ type: 'project', format: 'xlsx', projectId: project.id })
+    const res = await window.electronAPI.report.export({ type: 'project', format: fullFormat, projectId: project.id })
     if (res.canceled) return
-    if (res.ok) onToast('Full Project Report tersimpan')
+    if (res.ok) onToast(`Full Project Report ${fullFormat === 'pdf' ? 'PDF' : 'Excel'} tersimpan`)
     else onToast(res.error || 'Gagal export')
   }
 
@@ -324,9 +325,19 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
           <InfoItem label="Mulai · MOU" value={`${fmtDate(project.start_date)} · ${project.durasi_mou || '-'}`} />
           <InfoItem label="Status" value={<Badge tone={project.status === 'selesai' ? 'blue' : project.status === 'dihentikan' ? 'red' : 'green'}>{project.status}</Badge>} />
           <div className="flex flex-col justify-center items-end gap-1">
-            <button onClick={() => exportFullReport()} className="text-xs text-amber-600 hover:text-amber-700 font-medium">
-              Export Full Report
-            </button>
+            <div className="flex items-center gap-1.5">
+              <select
+                className="px-1.5 py-0.5 text-xs border border-zinc-300 rounded-md bg-white"
+                value={fullFormat}
+                onChange={(e) => setFullFormat(e.target.value as 'xlsx' | 'pdf')}
+              >
+                <option value="xlsx">Excel</option>
+                <option value="pdf">PDF</option>
+              </select>
+              <button onClick={() => exportFullReport()} className="text-xs text-amber-600 hover:text-amber-700 font-medium">
+                Export Full Report
+              </button>
+            </div>
             <button onClick={() => openProjModal(project)} className="text-xs text-amber-600 hover:text-amber-700 font-medium">
               Edit Info
             </button>
@@ -908,8 +919,12 @@ function TransferModal({ onClose, projects, currentId, onDone }: {
   const [saldo, setSaldo] = useState(0)
 
   useEffect(() => {
-    window.electronAPI.finance.globalSaldo().then(setSaldo)
-  }, [])
+    if (dari === 'global') {
+      window.electronAPI.finance.globalSaldo().then(setSaldo).catch(() => setSaldo(0))
+    } else {
+      window.electronAPI.finance.project(dari).then((f) => setSaldo(f.rekening)).catch(() => setSaldo(0))
+    }
+  }, [dari])
 
   const dariName = dari === 'global' ? 'Rek. Global' : projects.find((p) => p.id === dari)?.name ?? '?'
   const keName = ke === 'global' ? 'Rek. Global' : projects.find((p) => p.id === ke)?.name ?? '?'
