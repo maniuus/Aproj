@@ -252,3 +252,43 @@ test.describe('user flow: input nota keluar-subkon (bayar subkon)', () => {
     await expect(firstRow).toContainText('-Rp 150.000')
   })
 })
+
+test.describe('user flow: catatan per projek (#9)', () => {
+  test('simpan catatan projek & tampil di halaman Projek', async () => {
+    await openWorkspace()
+    await sidebar('Projek')
+
+    await win.getByText('CASHFLOW PROYEK').waitFor({ timeout: 10000 })
+    await win.getByText('Edit Info').click()
+
+    const notesField = win.getByPlaceholder('Catatan internal per projek, ikut dibackup bersama workspace')
+    await notesField.fill('Catatan uji: progres pondasi 40%')
+    await win.getByText('Simpan', { exact: true }).last().click()
+    await win.getByText('Projek tersimpan').waitFor({ timeout: 10000 })
+
+    await expect(win.getByText('Catatan Projek')).toBeVisible()
+    await expect(win.getByText('Catatan uji: progres pondasi 40%')).toBeVisible()
+
+    const saved = await win.evaluate(() => window.electronAPI.project.list())
+    expect(saved.some((p) => p.notes === 'Catatan uji: progres pondasi 40%')).toBe(true)
+  })
+})
+
+test.describe('user flow: filter tanggal custom (#3)', () => {
+  test('preset Range Kustom menampilkan DateInput & filter berjalan', async () => {
+    await openWorkspace()
+    await win.getByText('Total Pengeluaran').waitFor({ timeout: 8000 })
+
+    await win.locator('select').filter({ hasText: 'Bulan Ini' }).selectOption('custom')
+    const dates = win.getByPlaceholder('dd/mm/yy')
+    await expect(dates).toHaveCount(2)
+    await dates.first().fill('01/01/26')
+    await dates.nth(1).fill('31/12/26')
+
+    await win.getByText('Total Pengeluaran').waitFor({ timeout: 8000 })
+    await win.getByText('Total Pemasukan').waitFor({ timeout: 8000 })
+
+    const stat = await win.locator('main').getByText('Total Pemasukan').locator('..').textContent()
+    expect(stat).toContain('nota masuk')
+  })
+})

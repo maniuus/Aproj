@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '../stores'
-import { Card, CardBody, StatCard, EmptyNote } from '../components/ui'
+import { Card, CardBody, StatCard, EmptyNote, DateInput } from '../components/ui'
 import { fmtRupiah, fmtRupiahShort, todayISO, isKeluar } from '../lib/utils'
 
 function isoWeekStart(d: Date): string {
@@ -41,7 +41,9 @@ const PERIODS = [
   { key: 'today', label: 'Hari Ini' },
   { key: 'week', label: 'Minggu Ini' },
   { key: 'month', label: 'Bulan Ini' },
-  { key: 'lastMonth', label: 'Bulan Lalu' }
+  { key: 'lastMonth', label: 'Bulan Lalu' },
+  { key: 'sinceStart', label: 'Sejak Projek Mulai' },
+  { key: 'custom', label: 'Range Kustom…' }
 ]
 
 export default function Overview({ onToast }: { onToast?: (m: string) => void }) {
@@ -50,6 +52,8 @@ export default function Overview({ onToast }: { onToast?: (m: string) => void })
   const [projectId, setProjectId] = useState<string>('')
   const [notas, setNotas] = useState<{ date: string; project_name?: string; total: number; jenis: string }[]>([])
   const [range, setRange] = useState({ start: monthStart(), end: todayISO() })
+  const [customStart, setCustomStart] = useState(monthStart())
+  const [customEnd, setCustomEnd] = useState(todayISO())
   const [format, setFormat] = useState<'xlsx' | 'pdf'>('xlsx')
   const [exporting, setExporting] = useState<string | null>(null)
 
@@ -58,8 +62,14 @@ export default function Overview({ onToast }: { onToast?: (m: string) => void })
     if (period === 'today') setRange({ start: todayISO(), end: todayISO() })
     else if (period === 'week') setRange({ start: isoWeekStart(now), end: todayISO() })
     else if (period === 'month') setRange({ start: monthStart(), end: todayISO() })
-    else setRange(lastMonthRange())
-  }, [period])
+    else if (period === 'lastMonth') setRange(lastMonthRange())
+    else if (period === 'sinceStart') {
+      const proj = projects.find((p) => p.id === projectId)
+      setRange({ start: proj?.start_date || monthStart(), end: todayISO() })
+    } else if (period === 'custom') {
+      setRange({ start: customStart || monthStart(), end: customEnd || todayISO() })
+    }
+  }, [period, projectId, customStart, customEnd, projects])
 
   useEffect(() => {
     window.electronAPI.nota
@@ -120,6 +130,13 @@ export default function Overview({ onToast }: { onToast?: (m: string) => void })
             </option>
           ))}
         </select>
+        {period === 'custom' && (
+          <span className="flex items-center gap-2 text-sm">
+            <DateInput value={customStart} onChange={setCustomStart} placeholder="dd/mm/yy" />
+            <span className="text-zinc-400">s/d</span>
+            <DateInput value={customEnd} onChange={setCustomEnd} placeholder="dd/mm/yy" />
+          </span>
+        )}
         <select
           className="px-2 py-1.5 text-sm border border-zinc-300 rounded-md bg-white"
           value={projectId}

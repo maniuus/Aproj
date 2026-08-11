@@ -97,7 +97,8 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
             start_date: p.start_date ?? '',
             durasi_mou: p.durasi_mou ?? '',
             status: p.status ?? 'aktif',
-            resume: p.resume ?? ''
+            resume: p.resume ?? '',
+            notes: p.notes ?? ''
           }
         : { status: 'aktif' }
     )
@@ -153,6 +154,7 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
       durasi_mou: form.durasi_mou || null,
       status: form.status || 'aktif',
       resume: form.resume?.trim() || null,
+      notes: form.notes?.trim() || null,
       subkon_ids: subkonIds
     }
     if (editProj) await window.electronAPI.project.update(editProj.id, row)
@@ -334,6 +336,15 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
           </div>
         </CardBody>
       </Card>
+
+      {project.notes?.trim() && (
+        <Card className="mb-4">
+          <CardBody>
+            <div className="text-[11px] text-zinc-500 uppercase tracking-wide font-semibold mb-1">Catatan Projek</div>
+            <p className="text-sm text-zinc-700 whitespace-pre-wrap">{project.notes}</p>
+          </CardBody>
+        </Card>
+      )}
 
       {/* 3 kartu */}
       <div className="grid grid-cols-3 gap-4 mb-5">
@@ -569,6 +580,11 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
           <div className="col-span-2">
             <Field label="Resume item dikerjakan">
               <textarea className={inputCls} rows={2} value={form.resume ?? ''} onChange={(e) => setForm((p) => ({ ...p, resume: e.target.value }))} />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="Catatan projek">
+              <textarea className={inputCls} rows={2} value={form.notes ?? ''} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Catatan internal per projek, ikut dibackup bersama workspace" />
             </Field>
           </div>
         </div>
