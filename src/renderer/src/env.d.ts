@@ -112,7 +112,7 @@ export interface ElectronAPI {
     count: (opts: Row) => Promise<number>
     items: (notaId: string) => Promise<NotaItem[]>
     remove: (notaId: string) => Promise<boolean>
-    setPayment: (notaId: string, status: string) => Promise<boolean>
+    setPayment: (notaId: string, status: string, paidAt?: string | null) => Promise<boolean>
   }
   photo: {
     stage: () => Promise<{ fileName: string; dataUrl: string }[]>

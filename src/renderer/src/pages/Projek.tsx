@@ -37,6 +37,8 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
   const [pekerjas, setPekerjas] = useState<MasterRow[]>([])
   const [personelModal, setPersonelModal] = useState<MasterRow | null>(null)
   const [confirmDelNota, setConfirmDelNota] = useState<Nota | null>(null)
+  const [payNota, setPayNota] = useState<Nota | null>(null)
+  const [payDate, setPayDate] = useState(todayISO())
   const [confirmDelNeed, setConfirmDelNeed] = useState<MasterRow | null>(null)
   const [confirmDelProj, setConfirmDelProj] = useState(false)
 
@@ -203,6 +205,18 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
       reload()
     } catch (e) {
       onToast(`Gagal menghapus nota: ${errMsg(e)}`)
+    }
+  }
+
+  const confirmPay = async () => {
+    if (!payNota) return
+    try {
+      await window.electronAPI.nota.setPayment(payNota.id, 'terbayar', payDate || todayISO())
+      setPayNota(null)
+      onToast('Nota ditandai terbayar')
+      reload()
+    } catch (e) {
+      onToast(`Gagal menandai terbayar: ${errMsg(e)}`)
     }
   }
 
@@ -456,9 +470,13 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     {isKeluar(n.jenis) && (
                       <button
-                        onClick={async () => {
-                          await window.electronAPI.nota.setPayment(n.id, n.payment_status === 'hutang' ? 'terbayar' : 'hutang')
-                          reload()
+                        onClick={() => {
+                          if (n.payment_status === 'hutang') {
+                            setPayNota(n)
+                            setPayDate(todayISO())
+                          } else {
+                            window.electronAPI.nota.setPayment(n.id, 'hutang').then(() => reload())
+                          }
                         }}
                         className="text-xs text-amber-600 hover:text-amber-700 mr-2"
                         title={n.payment_status === 'hutang' ? 'Tandai terbayar' : 'Tandai hutang'}
@@ -682,6 +700,27 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
         onCancel={() => setConfirmDelNota(null)}
         onConfirm={deleteNota}
       />
+
+      <Modal
+        open={!!payNota}
+        onClose={() => setPayNota(null)}
+        title="Tandai Terbayar"
+        sub={payNota ? `${fmtRupiah(payNota.total)} · ${payNota.keterangan || payNota.suplier_name || payNota.items_desc || ''}` : ''}
+        footer={
+          <>
+            <span className="flex-1" />
+            <GhostButton onClick={() => setPayNota(null)}>Batal</GhostButton>
+            <PrimaryButton onClick={confirmPay}>Simpan</PrimaryButton>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <Field label="Tanggal pembayaran" req>
+            <DateInput value={payDate} onChange={setPayDate} placeholder="dd/mm/yy" />
+          </Field>
+          <p className="text-xs text-zinc-500">Saldo rekening proyek baru berkurang pada tanggal ini.</p>
+        </div>
+      </Modal>
 
       <Confirm
         open={!!confirmDelNeed}
