@@ -26,6 +26,7 @@ export interface Nota {
   date: string
   project_id: string | null
   suplier_id: string | null
+  subkon_id?: string | null
   jenis: string
   rekening: string
   keterangan: string | null
@@ -33,6 +34,7 @@ export interface Nota {
   payment_status?: string
   project_name?: string | null
   suplier_name?: string | null
+  subkon_name?: string | null
 }
 
 export interface NotaItem {

@@ -218,3 +218,37 @@ test.describe('user flow: guard & jumlah item', () => {
     await expect(win.getByText('Total:').locator('..').locator('b')).toHaveText('Rp 390.000')
   })
 })
+
+test.describe('user flow: input nota keluar-subkon (bayar subkon)', () => {
+  test('pilih subkon + item pekerjaan, auto-fill harga dari subkon_prices, simpan, tampil di tabel', async () => {
+    await openAddNota()
+    const before = await notaCount()
+
+    await win.locator('select').filter({ hasText: /Keluar|Masuk/ }).selectOption('keluar-subkon')
+
+    await win.getByPlaceholder('Ketik nama subkon…').fill('CV Bangun Jaya')
+
+    const pejInput = win.getByPlaceholder('Ketik nama pekerjaan…')
+    await pejInput.fill('Pekerjaan Pondasi')
+    const row = rowOf('Ketik nama pekerjaan…')
+    await expect(row.locator('input[type="number"]').nth(1)).toHaveValue('75000')
+    await expect(row.locator('input[placeholder="—"]')).toHaveValue('m3')
+
+    await row.locator('input[type="number"]').first().fill('2')
+    await expect(win.getByText('Total:').locator('..').locator('b')).toHaveText('Rp 150.000')
+
+    await win.getByPlaceholder('dd/mm/yy').fill(tomorrowDmy())
+    await win.getByText('Input Nota', { exact: true }).click()
+    await win.getByText('Nota tersimpan').waitFor({ timeout: 10000 })
+    expect(await notaCount()).toBe(before + 1)
+
+    const rows = await win.evaluate(() => window.electronAPI.nota.list({ limit: 1 }))
+    expect(rows[0].jenis).toBe('keluar-subkon')
+    expect(rows[0].subkon_name).toBe('CV Bangun Jaya')
+    expect(Number(rows[0].total)).toBe(150000)
+
+    const firstRow = win.locator('tbody tr').first()
+    await expect(firstRow).toContainText('CV Bangun Jaya')
+    await expect(firstRow).toContainText('-Rp 150.000')
+  })
+})

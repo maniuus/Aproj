@@ -11,6 +11,8 @@ const JENIS_LABEL: Record<string, string> = {
   'keluar-material': 'Keluar (Material)',
   'keluar-tenaga': 'Keluar (Tenaga)',
   'keluar-alat': 'Keluar (Alat)',
+  'keluar-pekerjaan': 'Keluar (Pekerjaan)',
+  'keluar-subkon': 'Keluar (Bayar Subkon)',
   'keluar-lain': 'Keluar (Lain-lain)',
   masuk: 'Masuk (Termin)'
 }

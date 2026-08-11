@@ -48,6 +48,8 @@ export const JENIS_OPTIONS = [
   { value: 'keluar-material', label: 'Keluar (material)' },
   { value: 'keluar-tenaga', label: 'Keluar (tenaga)' },
   { value: 'keluar-alat', label: 'Keluar (alat)' },
+  { value: 'keluar-pekerjaan', label: 'Keluar (pekerjaan)' },
+  { value: 'keluar-subkon', label: 'Keluar (bayar subkon)' },
   { value: 'keluar-lain', label: 'Keluar (lain-lain)' },
   { value: 'masuk', label: 'Masuk (termin)' }
 ]

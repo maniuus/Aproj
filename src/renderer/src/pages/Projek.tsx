@@ -22,7 +22,7 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
   const [subkonName, setSubkonName] = useState('')
   const [subkonIds, setSubkonIds] = useState<string[]>([])
   const [showNota, setShowNota] = useState(false)
-  const [editNota, setEditNota] = useState<{ id: string; date: string; project_id: string | null; suplier_id: string | null; jenis: string; keterangan: string | null; payment_status?: string } | null>(null)
+  const [editNota, setEditNota] = useState<{ id: string; date: string; project_id: string | null; suplier_id: string | null; subkon_id?: string | null; jenis: string; keterangan: string | null; payment_status?: string } | null>(null)
   const [editItems, setEditItems] = useState<{ item_type: string; item_id: string | null; name: string; unit: string; price: number; qty: number; subtotal: number }[]>([])
   const [showTransfer, setShowTransfer] = useState(false)
   const [needTab, setNeedTab] = useState<'material' | 'tenaga' | 'alat'>('material')
@@ -280,6 +280,7 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
       date: n.date,
       project_id: n.project_id,
       suplier_id: n.suplier_id,
+      subkon_id: n.subkon_id ?? null,
       jenis: n.jenis,
       keterangan: n.keterangan,
       payment_status: n.payment_status ?? 'terbayar'
@@ -418,8 +419,9 @@ export default function Projek({ onToast }: { onToast: (m: string) => void }) {
                     <Badge tone={isKeluar(n.jenis) ? 'red' : 'green'}>{jenisLabel(n.jenis)}</Badge>
                   </td>
                   <td className="px-4 py-2.5 text-zinc-600">
-                    {n.suplier_name || n.keterangan || '—'}
+                    {n.suplier_name || n.subkon_name || n.keterangan || '—'}
                     {n.jenis === 'keluar-material' && n.suplier_name && <span className="text-zinc-400"> — {n.suplier_name}</span>}
+                    {n.jenis === 'keluar-subkon' && n.subkon_name && <span className="text-zinc-400"> — {n.subkon_name}</span>}
                     {isKeluar(n.jenis) && (
                       <Badge tone={n.payment_status === 'hutang' ? 'amber' : 'green'}>{n.payment_status === 'hutang' ? 'Hutang' : 'Terbayar'}</Badge>
                     )}

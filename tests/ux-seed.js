@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS pekerjaans (id TEXT PRIMARY KEY, name TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS subkon_prices (id TEXT PRIMARY KEY, pekerjaan_id TEXT NOT NULL, subkon_id TEXT NOT NULL, price INTEGER DEFAULT 0, UNIQUE(pekerjaan_id, subkon_id));
 CREATE TABLE IF NOT EXISTS gudangs (id TEXT PRIMARY KEY, name TEXT NOT NULL, lokasi TEXT, notes TEXT, created_at TEXT, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS kebutuhans (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, jenis TEXT NOT NULL, item_type TEXT, item_id TEXT, satuan TEXT, qty_rencana REAL DEFAULT 0, notes TEXT, created_at TEXT, updated_at TEXT);
-CREATE TABLE IF NOT EXISTS notas (id TEXT PRIMARY KEY, date TEXT NOT NULL, project_id TEXT, suplier_id TEXT, jenis TEXT NOT NULL, rekening TEXT DEFAULT 'proyek', keterangan TEXT, total INTEGER DEFAULT 0, payment_status TEXT DEFAULT 'terbayar', created_at TEXT, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS notas (id TEXT PRIMARY KEY, date TEXT NOT NULL, project_id TEXT, suplier_id TEXT, subkon_id TEXT, jenis TEXT NOT NULL, rekening TEXT DEFAULT 'proyek', keterangan TEXT, total INTEGER DEFAULT 0, payment_status TEXT DEFAULT 'terbayar', created_at TEXT, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS nota_items (id TEXT PRIMARY KEY, nota_id TEXT NOT NULL, item_type TEXT NOT NULL, item_id TEXT, name TEXT NOT NULL, unit TEXT, price INTEGER DEFAULT 0, qty REAL DEFAULT 0, subtotal INTEGER DEFAULT 0, sort_order INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS nota_photos (id TEXT PRIMARY KEY, nota_id TEXT NOT NULL, file_name TEXT NOT NULL, caption TEXT, sort_order INTEGER DEFAULT 0, created_at TEXT);
 CREATE TABLE IF NOT EXISTS transfers (id TEXT PRIMARY KEY, date TEXT NOT NULL, dari TEXT NOT NULL, ke TEXT NOT NULL, jumlah INTEGER DEFAULT 0, jenis TEXT DEFAULT 'pendanaan', keterangan TEXT, created_at TEXT, updated_at TEXT);
@@ -65,6 +65,17 @@ async function main() {
   mats.forEach(([id, name, unit]) => db.run(`INSERT INTO materials (id, name, unit) VALUES (?, ?, ?)`, [id, name, unit]))
   db.run(`INSERT INTO material_prices (id, material_id, suplier_id, price) VALUES (?, ?, ?, ?)`, ['mp-1', 'mat-1', suplierId, 65000])
   db.run(`INSERT INTO material_prices (id, material_id, suplier_id, price) VALUES (?, ?, ?, ?)`, ['mp-2', 'mat-2', suplierId, 52000])
+
+  const subkonId = 'subkon-1'
+  db.run(`INSERT INTO subkontraktors (id, name, phone, address) VALUES (?, 'CV Bangun Jaya', '031-555', 'Jl. Industri No.5')`, [subkonId])
+  const pejIds = ['pej-1', 'pej-2']
+  const pejs = [
+    ['pej-1', 'Pekerjaan Pondasi', 'm3'],
+    ['pej-2', 'Pekerjaan Atap', 'm2']
+  ]
+  pejs.forEach(([id, name, unit]) => db.run(`INSERT INTO pekerjaans (id, name, unit, harga_satuan) VALUES (?, ?, ?, 80000)`, [id, name, unit]))
+  db.run(`INSERT INTO subkon_prices (id, pekerjaan_id, subkon_id, price) VALUES (?, ?, ?, ?)`, ['sp-1', 'pej-1', subkonId, 75000])
+  db.run(`INSERT INTO subkon_prices (id, pekerjaan_id, subkon_id, price) VALUES (?, ?, ?, ?)`, ['sp-2', 'pej-2', subkonId, 65000])
 
   const projects = [
     ['prj-1', 'Rumah Tinggal Jl. Melati', 250000000],

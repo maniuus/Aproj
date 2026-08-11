@@ -17,6 +17,7 @@ export interface NotaPayload {
   date: string
   project_id: string | null
   suplier_id: string | null
+  subkon_id: string | null
   jenis: string
   rekening: string
   keterangan: string
@@ -33,6 +34,8 @@ const TYPE_LABELS: Record<string, string> = {
   material: 'Material',
   personel: 'Personel',
   alat: 'Alat',
+  pekerjaan: 'Pekerjaan',
+  subkon: 'Subkon',
   inflow: 'Sumber pemasukan',
   lain: 'Uraian'
 }
@@ -60,6 +63,7 @@ export default function NotaModal({
     date: string
     project_id: string | null
     suplier_id: string | null
+    subkon_id?: string | null
     jenis: string
     keterangan: string | null
     payment_status?: string
@@ -70,16 +74,21 @@ export default function NotaModal({
   const [projectId, setProjectId] = useState<string>(from === 'project' ? defaultProjectId ?? '' : '')
   const [suplierId, setSuplierId] = useState<string>('')
   const [suplierName, setSuplierName] = useState('')
+  const [subkonId, setSubkonId] = useState<string>('')
+  const [subkonName, setSubkonName] = useState('')
   const [jenis, setJenis] = useState('keluar-material')
   const [payment, setPayment] = useState('terbayar')
   const [keterangan, setKeterangan] = useState('')
   const [items, setItems] = useState<RowState[]>([])
   const [supliers, setSupliers] = useState<MasterRow[]>([])
+  const [subkons, setSubkons] = useState<MasterRow[]>([])
+  const [pekerjaans, setPekerjaans] = useState<MasterRow[]>([])
   const [materials, setMaterials] = useState<MasterRow[]>([])
   const [personels, setPersonels] = useState<MasterRow[]>([])
   const [alats, setAlats] = useState<MasterRow[]>([])
   const [tenaga, setTenaga] = useState<MasterRow[]>([])
   const [prices, setPrices] = useState<Record<string, number>>({})
+  const [subkonPrices, setSubkonPrices] = useState<Record<string, number>>({})
   const [showNewPersonel, setShowNewPersonel] = useState(false)
   const [newPersonelName, setNewPersonelName] = useState('')
   const [newPersonelTenaga, setNewPersonelTenaga] = useState('')
@@ -96,6 +105,8 @@ export default function NotaModal({
   const isMaterial = jenis === 'keluar-material'
   const isPersonel = jenis === 'keluar-tenaga'
   const isAlat = jenis === 'keluar-alat'
+  const isPekerjaan = jenis === 'keluar-pekerjaan'
+  const isSubkon = jenis === 'keluar-subkon'
   const isLain = jenis === 'keluar-lain'
   const isMasuk = jenis === 'masuk'
 
@@ -121,6 +132,8 @@ export default function NotaModal({
     setProjectId(editNota?.project_id ?? (from === 'project' ? defaultProjectId ?? '' : ''))
     setSuplierId(editNota?.suplier_id ?? '')
     setSuplierName('')
+    setSubkonId(editNota?.subkon_id ?? '')
+    setSubkonName('')
     setJenis(editNota?.jenis || 'keluar-material')
     setPayment(editNota?.payment_status || 'terbayar')
     setKeterangan(editNota?.keterangan ?? '')
@@ -163,6 +176,14 @@ export default function NotaModal({
     window.electronAPI.master.list('materials').then(setMaterials)
     window.electronAPI.master.list('pekerjas').then(setPersonels)
     window.electronAPI.master.list('alats').then(setAlats)
+    window.electronAPI.master.list('subkontraktors').then((rows) => {
+      setSubkons(rows)
+      if (editNota?.subkon_id) {
+        const s = rows.find((x) => String(x.id) === String(editNota.subkon_id))
+        if (s) setSubkonName(String(s.name))
+      }
+    })
+    window.electronAPI.master.list('pekerjaans').then(setPekerjaans)
     window.electronAPI.master.list('tenaga_kerja').then((rows) => {
       setTenaga(rows)
       if (rows.length) {
@@ -176,6 +197,13 @@ export default function NotaModal({
         map[`${r.material_id}:${r.suplier_id}`] = Number(r.price) || 0
       })
       setPrices(map)
+    })
+    window.electronAPI.prices.list('subkon_prices').then((rows) => {
+      const map: Record<string, number> = {}
+      rows.forEach((r) => {
+        map[`${r.pekerjaan_id}:${r.subkon_id}`] = Number(r.price) || 0
+      })
+      setSubkonPrices(map)
     })
   }, [open, from, defaultProjectId, editNota, editItems])
 
@@ -193,6 +221,8 @@ export default function NotaModal({
   function itemTypeFor(j: string): string {
     if (j === 'keluar-tenaga') return 'personel'
     if (j === 'keluar-alat') return 'alat'
+    if (j === 'keluar-pekerjaan') return 'pekerjaan'
+    if (j === 'keluar-subkon') return 'subkon'
     if (j === 'keluar-lain') return 'lain'
     if (j === 'masuk') return 'inflow'
     return 'material'
@@ -201,6 +231,8 @@ export default function NotaModal({
   function sourceFor(j: string): { list: MasterRow[]; label: string } {
     if (j === 'keluar-tenaga') return { list: personels, label: 'Ketik nama personel…' }
     if (j === 'keluar-alat') return { list: alats, label: 'Ketik nama alat…' }
+    if (j === 'keluar-pekerjaan') return { list: pekerjaans, label: 'Ketik nama pekerjaan…' }
+    if (j === 'keluar-subkon') return { list: pekerjaans, label: 'Ketik nama pekerjaan…' }
     if (j === 'keluar-lain') return { list: [], label: 'Ketik uraian pengeluaran…' }
     if (j === 'masuk') return { list: [], label: 'Ketik sumber pemasukan (Termin, Pinjaman)…' }
     return { list: materials, label: 'Ketik nama material…' }
@@ -230,11 +262,15 @@ export default function NotaModal({
                 const p = prices[`${next.item_id}:${suplierId}`]
                 if (p !== undefined) next.price = p
               }
+              if (isSubkon) {
+                const p = subkonPrices[`${next.item_id}:${subkonId}`]
+                if (p !== undefined) next.price = p
+              }
             }
           }
         }
         if (patch.item_id && patch.item_id !== it.item_id) {
-          const found = [...materials, ...personels, ...alats].find((m) => m.id === patch.item_id)
+          const found = [...materials, ...personels, ...alats, ...pekerjaans].find((m) => m.id === patch.item_id)
           if (found) {
             next.name = String(found.name)
             next.unit = String(found.unit ?? 'OH')
@@ -242,6 +278,10 @@ export default function NotaModal({
           }
           if (isMaterial) {
             const p = prices[`${next.item_id}:${suplierId}`]
+            if (p !== undefined) next.price = p
+          }
+          if (isSubkon) {
+            const p = subkonPrices[`${next.item_id}:${subkonId}`]
             if (p !== undefined) next.price = p
           }
         }
@@ -255,6 +295,38 @@ export default function NotaModal({
 
   const suplierMatch = supliers.find((s) => String(s.name).toLowerCase() === suplierName.trim().toLowerCase())
   const isNewSuplier = isMaterial && suplierName.trim() && !suplierMatch
+
+  const subkonMatch = subkons.find((s) => String(s.name).toLowerCase() === subkonName.trim().toLowerCase())
+  const isNewSubkon = isSubkon && subkonName.trim() && !subkonMatch
+
+  const pickSubkon = (name: string) => {
+    setSubkonName(name)
+    const match = subkons.find((s) => String(s.name).toLowerCase() === name.trim().toLowerCase())
+    const sid = match ? String(match.id) : ''
+    setSubkonId(sid)
+    if (sid) {
+      setItems((prev) =>
+        prev.map((it) => {
+          if (!it.item_id || it.item_type !== 'subkon') return it
+          const p = subkonPrices[`${it.item_id}:${sid}`]
+          if (p !== undefined) {
+            const price = Number(p) || 0
+            return { ...it, price, subtotal: (Number(it.qty) || 0) * price }
+          }
+          return it
+        })
+      )
+    }
+  }
+
+  const saveNewSubkon = async () => {
+    const name = subkonName.trim()
+    if (!name) return
+    const s = await window.electronAPI.master.insert('subkontraktors', { name })
+    setSubkons((prev) => [...prev, s])
+    setSubkonId(String(s.id))
+    onToast?.(`Subkon "${name}" tersimpan`)
+  }
 
   const pickSuplier = (name: string) => {
     setSuplierName(name)
@@ -288,11 +360,12 @@ export default function NotaModal({
   const save = async () => {
     const filled = items.filter((it) => it.name.trim())
     if (filled.length === 0) return
-    const rekening = isMaterial || isPersonel || isAlat || isLain ? (projectId ? 'proyek' : 'global') : 'global'
+    const rekening = isMaterial || isPersonel || isAlat || isPekerjaan || isSubkon || isLain ? (projectId ? 'proyek' : 'global') : 'global'
     onSave({
       date,
       project_id: projectId || null,
       suplier_id: suplierId || null,
+      subkon_id: subkonId || null,
       jenis,
       rekening,
       keterangan: keterangan.trim(),
@@ -449,6 +522,27 @@ export default function NotaModal({
             </div>
           </Field>
         )}
+        {isSubkon && (
+          <Field label="Subkon" req className="flex-1 min-w-[220px]">
+            <div className="flex gap-1.5 items-center">
+              <input
+                list="dl-subkon"
+                className={inputCls}
+                value={subkonName}
+                placeholder="Ketik nama subkon…"
+                onChange={(e) => pickSubkon(e.target.value)}
+              />
+              {isNewSubkon && (
+                <button
+                  onClick={saveNewSubkon}
+                  className="shrink-0 px-2 py-1.5 text-xs bg-amber-50 text-amber-700 border border-amber-300 rounded-md font-semibold hover:bg-amber-100"
+                >
+                  Simpan
+                </button>
+              )}
+            </div>
+          </Field>
+        )}
         <Field label="Jenis Pengeluaran" className="w-[230px]">
           <select className={selectCls} value={jenis} onChange={(e) => changeJenis(e.target.value)}>
             {JENIS_OPTIONS.map((o) => (
@@ -585,6 +679,12 @@ export default function NotaModal({
 
       <datalist id="dl-suplier">
         {supliers.map((s) => (
+          <option key={s.id} value={String(s.name)} />
+        ))}
+      </datalist>
+
+      <datalist id="dl-subkon">
+        {subkons.map((s) => (
           <option key={s.id} value={String(s.name)} />
         ))}
       </datalist>
