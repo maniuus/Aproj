@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS kebutuhans (
 );
 
 CREATE TABLE IF NOT EXISTS notas (
-  id TEXT PRIMARY KEY, date TEXT NOT NULL, project_id TEXT, suplier_id TEXT,
+  id TEXT PRIMARY KEY, date TEXT NOT NULL, project_id TEXT, suplier_id TEXT, subkon_id TEXT,
   jenis TEXT NOT NULL, rekening TEXT DEFAULT 'proyek', keterangan TEXT, total INTEGER DEFAULT 0,
   payment_status TEXT DEFAULT 'terbayar',
   created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
@@ -218,7 +218,10 @@ function runMigrations() {
       )
     }
   })
-  migrateColumns('notas', [['payment_status', "TEXT DEFAULT 'terbayar'"]])
+  migrateColumns('notas', [
+    ['payment_status', "TEXT DEFAULT 'terbayar'"],
+    ['subkon_id', 'TEXT']
+  ])
   saveDB()
 }
 
@@ -525,6 +528,7 @@ ipcMain.handle('nota:add', async (_e, data: {
   date: string
   project_id: string | null
   suplier_id: string | null
+  subkon_id: string | null
   jenis: string
   rekening: string
   keterangan: string
@@ -534,8 +538,8 @@ ipcMain.handle('nota:add', async (_e, data: {
   const id = uuid()
   const total = data.items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0)
   db!.run(
-    `INSERT INTO notas (id, date, project_id, suplier_id, jenis, rekening, keterangan, total, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.date, data.project_id, data.suplier_id, data.jenis, data.rekening, data.keterangan, total, data.payment_status || 'terbayar']
+    `INSERT INTO notas (id, date, project_id, suplier_id, subkon_id, jenis, rekening, keterangan, total, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.date, data.project_id, data.suplier_id, data.subkon_id, data.jenis, data.rekening, data.keterangan, total, data.payment_status || 'terbayar']
   )
   data.items.forEach((item, i) => {
     db!.run(
@@ -559,10 +563,11 @@ function notaWhere(opts: { start?: string; end?: string; projectId?: string | nu
 
 ipcMain.handle('nota:list', (_e, opts: { start?: string; end?: string; projectId?: string | null; jenis?: string; limit?: number; offset?: number }) => {
   const [whereSql, params] = notaWhere(opts)
-  let sql = `SELECT n.*, p.name AS project_name, s.name AS suplier_name
+  let sql = `SELECT n.*, p.name AS project_name, s.name AS suplier_name, k.name AS subkon_name
      FROM notas n
      LEFT JOIN projects p ON n.project_id = p.id
      LEFT JOIN supliers s ON n.suplier_id = s.id
+     LEFT JOIN subkontraktors k ON n.subkon_id = k.id
      ${whereSql} ORDER BY n.date DESC, n.created_at DESC`
   const limit = Number(opts.limit) || 0
   const offset = Number(opts.offset) || 0
@@ -673,6 +678,7 @@ ipcMain.handle('nota:update', async (_e, notaId: string, data: {
   date: string
   project_id: string | null
   suplier_id: string | null
+  subkon_id: string | null
   jenis: string
   rekening: string
   keterangan: string
@@ -681,8 +687,8 @@ ipcMain.handle('nota:update', async (_e, notaId: string, data: {
 }) => {
   const total = data.items.reduce((s, i) => s + (Number(i.subtotal) || 0), 0)
   db!.run(
-    `UPDATE notas SET date = ?, project_id = ?, suplier_id = ?, jenis = ?, rekening = ?, keterangan = ?, total = ?, payment_status = ?, updated_at = datetime('now') WHERE id = ?`,
-    [data.date, data.project_id, data.suplier_id, data.jenis, data.rekening, data.keterangan, total, data.payment_status || 'terbayar', notaId]
+    `UPDATE notas SET date = ?, project_id = ?, suplier_id = ?, subkon_id = ?, jenis = ?, rekening = ?, keterangan = ?, total = ?, payment_status = ?, updated_at = datetime('now') WHERE id = ?`,
+    [data.date, data.project_id, data.suplier_id, data.subkon_id, data.jenis, data.rekening, data.keterangan, total, data.payment_status || 'terbayar', notaId]
   )
   db!.run('DELETE FROM nota_items WHERE nota_id = ?', [notaId])
   data.items.forEach((item, i) => {

@@ -56,6 +56,8 @@ export default function Master() {
         <MaterialTab />
       ) : tab === 'pekerja' ? (
         <PekerjaTab />
+      ) : tab === 'pekerjaan' ? (
+        <PekerjaanTab />
       ) : (
         <SimpleCrudTab config={CONFIGS[tab]} />
       )}
@@ -383,6 +385,195 @@ function MaterialTab() {
             .remove('materials', delMat.id)
             .then(() => {
               setDelMat(null)
+              reload()
+            })
+            .catch((e) => console.error('gagal hapus', e))
+        }}
+      />
+    </Card>
+  )
+}
+
+// ---------------- Pekerjaan tab
+
+function PekerjaanTab() {
+  const [pekerjaans, setPekerjaans] = useState<MasterRow[]>([])
+  const [subkons, setSubkons] = useState<MasterRow[]>([])
+  const [prices, setPrices] = useState<MasterRow[]>([])
+  const [showPej, setShowPej] = useState(false)
+  const [editPej, setEditPej] = useState<MasterRow | null>(null)
+  const [delPej, setDelPej] = useState<MasterRow | null>(null)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [priceForm, setPriceForm] = useState({ pekerjaan_id: '', subkon_id: '', price: '' })
+  const [showPrice, setShowPrice] = useState(false)
+
+  const reload = () => {
+    window.electronAPI.master.list('pekerjaans').then(setPekerjaans)
+    window.electronAPI.master.list('subkontraktors').then(setSubkons)
+    window.electronAPI.prices.list('subkon_prices').then(setPrices)
+  }
+
+  useEffect(reload, [])
+
+  const openAddPej = () => {
+    setEditPej(null)
+    setForm({})
+    setShowPej(true)
+  }
+
+  const submitPej = async () => {
+    const row = {
+      name: form.name?.trim() ?? '',
+      unit: form.unit?.trim() ?? '',
+      harga_satuan: Number(form.harga_satuan) || 0,
+      notes: form.notes?.trim() ?? ''
+    }
+    if (editPej) await window.electronAPI.master.update('pekerjaans', editPej.id, row)
+    else await window.electronAPI.master.insert('pekerjaans', row)
+    setShowPej(false)
+    reload()
+  }
+
+  const submitPrice = async () => {
+    if (!priceForm.pekerjaan_id || !priceForm.subkon_id) return
+    await window.electronAPI.prices.upsert('subkon_prices', {
+      pekerjaan_id: priceForm.pekerjaan_id,
+      subkon_id: priceForm.subkon_id,
+      price: Number(priceForm.price) || 0
+    })
+    setShowPrice(false)
+    setPriceForm({ pekerjaan_id: '', subkon_id: '', price: '' })
+    reload()
+  }
+
+  return (
+    <Card>
+      <div className="px-4 py-3 border-b border-zinc-200 flex items-center justify-between">
+        <span className="text-sm font-semibold text-zinc-700">Pekerjaan &amp; Harga per Subkon</span>
+        <div className="flex gap-2">
+          <GhostButton onClick={() => setShowPrice(true)} className="text-xs px-3 py-1.5">
+            + Harga Subkon
+          </GhostButton>
+          <PrimaryButton onClick={openAddPej} className="text-xs px-3 py-1.5">
+            + Pekerjaan
+          </PrimaryButton>
+        </div>
+      </div>
+      {pekerjaans.length === 0 ? (
+        <CardBody>
+          <EmptyNote>Belum ada pekerjaan</EmptyNote>
+        </CardBody>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-zinc-500 uppercase border-b border-zinc-200 text-left">
+              <th className="px-4 py-2.5">Pekerjaan</th>
+              <th className="px-4 py-2.5">Satuan</th>
+              <th className="px-4 py-2.5">Harga Satuan</th>
+              <th className="px-4 py-2.5">Harga Terendah (Subkon)</th>
+              <th className="px-4 py-2.5">Jml Subkon</th>
+              <th className="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {pekerjaans.map((pej) => {
+              const pejPrices = prices.filter((p) => p.pekerjaan_id === pej.id)
+              const min = pejPrices.reduce((s, p) => Math.min(s, Number(p.price) || 0), Infinity)
+              return (
+                <tr key={pej.id} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <td className="px-4 py-2.5 font-medium">{String(pej.name)}</td>
+                  <td className="px-4 py-2.5 text-zinc-600">{String(pej.unit ?? '—')}</td>
+                  <td className="px-4 py-2.5 text-zinc-900">
+                    {Number(pej.harga_satuan) ? (
+                      <span className="font-semibold">{fmtRupiah(Number(pej.harga_satuan))}</span>
+                    ) : (
+                      <span className="text-zinc-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-zinc-900">
+                    {pejPrices.length ? (
+                      <span className="text-emerald-600 font-semibold">{fmtRupiah(min)}</span>
+                    ) : (
+                      <span className="text-zinc-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {pejPrices.length ? <Badge tone="amber">{pejPrices.length}</Badge> : <span className="text-zinc-400">0</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                    <MutedButton
+                      onClick={() => {
+                        setEditPej(pej)
+                        setForm({ name: String(pej.name), unit: String(pej.unit ?? ''), harga_satuan: String(pej.harga_satuan ?? ''), notes: String(pej.notes ?? '') })
+                        setShowPej(true)
+                      }}
+                    >
+                      Edit
+                    </MutedButton>
+                    <DangerButton onClick={() => setDelPej(pej)}>Hapus</DangerButton>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <p className="px-4 py-3 text-xs text-zinc-400">
+        Harga pekerjaan unik per pasangan pekerjaan × subkon. Klik '+ Harga Subkon' untuk mencatat harga subkon tertentu.
+      </p>
+
+      <Modal open={showPej} onClose={() => setShowPej(false)} title={editPej ? 'Edit Pekerjaan' : '+ Pekerjaan'} footer={<>
+        <span className="flex-1" />
+        <GhostButton onClick={() => setShowPej(false)}>Batal</GhostButton>
+        <PrimaryButton onClick={submitPej}>Simpan</PrimaryButton>
+      </>}>
+        <div className="space-y-3">
+          <Field label="Nama Pekerjaan" req><input className={inputCls} value={form.name ?? ''} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} /></Field>
+          <Field label="Satuan"><input className={inputCls} value={form.unit ?? ''} onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))} /></Field>
+          <Field label="Harga Satuan (Rp)"><input className={inputCls} type="number" value={form.harga_satuan ?? ''} onChange={(e) => setForm((p) => ({ ...p, harga_satuan: e.target.value }))} /></Field>
+        </div>
+      </Modal>
+
+      <Modal open={showPrice} onClose={() => setShowPrice(false)} title="+ Harga per Subkon" footer={<>
+        <span className="flex-1" />
+        <GhostButton onClick={() => setShowPrice(false)}>Batal</GhostButton>
+        <PrimaryButton onClick={submitPrice} disabled={!priceForm.pekerjaan_id || !priceForm.subkon_id}>Simpan</PrimaryButton>
+      </>}>
+        <div className="space-y-3">
+          <Field label="Pekerjaan" req>
+            <select className={inputCls} value={priceForm.pekerjaan_id} onChange={(e) => setPriceForm((p) => ({ ...p, pekerjaan_id: e.target.value }))}>
+              <option value="">— Pilih —</option>
+              {pekerjaans.map((pej) => (
+                <option key={pej.id} value={pej.id}>{String(pej.name)}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Subkon" req>
+            <select className={inputCls} value={priceForm.subkon_id} onChange={(e) => setPriceForm((p) => ({ ...p, subkon_id: e.target.value }))}>
+              <option value="">— Pilih —</option>
+              {subkons.map((s) => (
+                <option key={s.id} value={s.id}>{String(s.name)}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Harga (Rp)" req>
+            <input className={inputCls} type="number" value={priceForm.price} onChange={(e) => setPriceForm((p) => ({ ...p, price: e.target.value }))} />
+          </Field>
+        </div>
+      </Modal>
+
+      <Confirm
+        open={!!delPej}
+        title="Hapus pekerjaan"
+        message={`Yakin hapus "${delPej ? String(delPej.name ?? delPej.id) : ''}"? Harga subkon terkait ikut terhapus.`}
+        onCancel={() => setDelPej(null)}
+        onConfirm={() => {
+          if (!delPej) return
+          window.electronAPI.master
+            .remove('pekerjaans', delPej.id)
+            .then(() => {
+              setDelPej(null)
               reload()
             })
             .catch((e) => console.error('gagal hapus', e))

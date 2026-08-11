@@ -111,7 +111,7 @@ const MASTER_TABS = [
   { tab: 'Tenaga Kerja', addButton: '+ Tambah' },
   { tab: 'Alat', addButton: '+ Tambah' },
   { tab: 'Subkon', addButton: '+ Tambah' },
-  { tab: 'Pekerjaan', addButton: '+ Tambah' }
+  { tab: 'Pekerjaan', addButton: '+ Pekerjaan' }
 ]
 
 for (const m of MASTER_TABS) {
