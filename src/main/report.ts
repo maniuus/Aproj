@@ -67,7 +67,8 @@ function buildReportData(opts: ReportOpts, all: (sql: string, params?: SqlValue[
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
 
   const notas = all(
-    `SELECT n.*, p.name AS project_name, s.name AS suplier_name
+    `SELECT n.*, p.name AS project_name, s.name AS suplier_name,
+            (SELECT GROUP_CONCAT(ni.name, ', ') FROM nota_items ni WHERE ni.nota_id = n.id) AS items_desc
      FROM notas n
      LEFT JOIN projects p ON n.project_id = p.id
      LEFT JOIN supliers s ON n.suplier_id = s.id
@@ -235,28 +236,28 @@ const FILL = '#f7f7f7'
 const FILL_HEADER = '#f2f2f3'
 
 function drawPdfHeader(doc: PDFKit.PDFDocument, data: ReportData, nomor: string) {
-  // brand kiri
-  doc.rect(PDF_MARGIN, 45, 11, 11).fill(INK)
-  doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#ffffff').text('A', PDF_MARGIN + 3, 47.5)
-  doc.font('Helvetica-Bold').fontSize(12).fillColor(INK).text('APROJ', PDF_MARGIN + 17, 43)
-  doc.font('Helvetica').fontSize(7.5).fillColor(GRAY).text('ADMINISTRASI PROYEK', PDF_MARGIN + 17, 56.5)
+  // brand kiri (kop)
+  doc.rect(PDF_MARGIN, 40, 10, 10).fill(INK)
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff').text('A', PDF_MARGIN + 2.6, 42)
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(INK).text('APROJ', PDF_MARGIN + 16, 40.5)
+  doc.font('Helvetica').fontSize(6.5).fillColor(GRAY).text('ADMINISTRASI PROYEK', PDF_MARGIN + 16, 51)
 
   // nomor + tanggal kanan
-  doc.font('Helvetica').fontSize(7.5).fillColor(GRAY).text(`Nomor  : ${nomor}`, 0, 45, { align: 'right', width: PDF_WIDTH - PDF_MARGIN })
-  doc.font('Helvetica').fontSize(7.5).fillColor(GRAY).text(`Tanggal: ${fmtDate(new Date().toISOString().slice(0, 10))}`, 0, 56.5, { align: 'right', width: PDF_WIDTH - PDF_MARGIN })
+  doc.font('Helvetica').fontSize(7.5).fillColor(GRAY).text(`Nomor  : ${nomor}`, 0, 41, { align: 'right', width: PDF_WIDTH - PDF_MARGIN })
+  doc.font('Helvetica').fontSize(7.5).fillColor(GRAY).text(`Tanggal: ${fmtDate(new Date().toISOString().slice(0, 10))}`, 0, 51, { align: 'right', width: PDF_WIDTH - PDF_MARGIN })
 
-  // garis tipis
-  doc.moveTo(PDF_MARGIN, 74).lineTo(PDF_WIDTH - PDF_MARGIN, 74).lineWidth(0.6).strokeColor(LINE).stroke()
+  // garis kop
+  doc.moveTo(PDF_MARGIN, 68).lineTo(PDF_WIDTH - PDF_MARGIN, 68).lineWidth(0.8).strokeColor(INK).stroke()
 
-  // judul di tengah
-  doc.font('Helvetica-Bold').fontSize(16).fillColor(INK).text(data.title, PDF_MARGIN, 86, { align: 'center', width: PDF_CONTENT_W })
-  doc.font('Helvetica').fontSize(8.5).fillColor(GRAY).text(
+  // judul dokumen terpusat dengan hierarki jelas
+  doc.font('Helvetica-Bold').fontSize(18).fillColor(INK).text(data.title, PDF_MARGIN, 84, { align: 'center', width: PDF_CONTENT_W })
+  doc.font('Helvetica').fontSize(9).fillColor(BODY).text(
     `Workspace: ${data.workspace}   •   Periode: ${data.periode}   •   Projek: ${data.scope}`,
     PDF_MARGIN,
-    106,
+    104,
     { align: 'center', width: PDF_CONTENT_W }
   )
-  doc.y = 126
+  doc.y = 122
 }
 
 function drawPdfSectionTitle(doc: PDFKit.PDFDocument, title: string) {
@@ -461,7 +462,7 @@ function exportPdf(data: ReportData, filePath: string) {
     data.notas.map((n) => [
       fmtDate(String(n.date ?? '')),
       JENIS_LABEL[String(n.jenis ?? '')] || String(n.jenis ?? ''),
-      String(n.suplier_name ?? n.keterangan ?? ''),
+      String(n.items_desc ?? n.suplier_name ?? n.keterangan ?? ''),
       String(n.project_name ?? (n.project_id ? '' : 'Tanpa projek')),
       String(n.rekening ?? ''),
       rp(Number(n.total) || 0)

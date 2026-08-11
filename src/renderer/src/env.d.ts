@@ -35,6 +35,7 @@ export interface Nota {
   project_name?: string | null
   suplier_name?: string | null
   subkon_name?: string | null
+  items_desc?: string | null
 }
 
 export interface NotaItem {

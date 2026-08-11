@@ -172,7 +172,7 @@ test.describe('user flow: input nota keluar-lain (uraian bebas)', () => {
     await win.getByText('Nota tersimpan').waitFor({ timeout: 10000 })
 
     const firstRow = win.locator('tbody tr').first()
-    await expect(firstRow).toContainText('Biaya makan tim otomasi')
+    await expect(firstRow).toContainText('Konsumsi rapat')
     await expect(firstRow).toContainText('-Rp 150.000')
   })
 })
@@ -290,5 +290,48 @@ test.describe('user flow: filter tanggal custom (#3)', () => {
 
     const stat = await win.locator('main').getByText('Total Pemasukan').locator('..').textContent()
     expect(stat).toContain('nota masuk')
+  })
+})
+
+test.describe('user flow: inline create material dari form nota (#20)', () => {
+  test('ketik material baru + Simpan → tersimpan ke master & auto-fill harga per suplier', async () => {
+    await openAddNota()
+
+    const jenisSelect = win.locator('select').filter({ hasText: /Keluar|Masuk/ })
+    await jenisSelect.selectOption('keluar-material')
+
+    await win.getByPlaceholder('Ketik nama suplier…').fill('PT Sumber Jaya')
+    await win.getByPlaceholder('Ketik nama material…').fill('Beton Cor K-250')
+
+    await win.getByText('Simpan', { exact: true }).click()
+    await win.getByText('Material Baru').waitFor({ timeout: 5000 })
+
+    await win.getByPlaceholder('Contoh: sak, m3, batang').fill('m3')
+    const priceInput = win.locator('input[type="number"]').filter({ hasText: '' }).last()
+    await priceInput.fill('800000')
+    await win.getByText('Simpan', { exact: true }).last().click()
+
+    await win.getByText('"Beton Cor K-250" tersimpan').waitFor({ timeout: 5000 })
+    const row = rowOf('Ketik nama material…')
+    await expect(row.locator('input[type="number"]').nth(1)).toHaveValue('800000')
+    await expect(row.locator('input[placeholder="—"]')).toHaveValue('m3')
+
+    await win.getByText('Input Nota').click()
+    await win.getByText('Nota tersimpan').waitFor({ timeout: 10000 })
+
+    const mats = await win.evaluate(() => window.electronAPI.master.list('materials'))
+    expect(mats.some((m) => String(m.name) === 'Beton Cor K-250')).toBe(true)
+    const prices = await win.evaluate(() => window.electronAPI.prices.list('material_prices'))
+    const beton = mats.find((m) => String(m.name) === 'Beton Cor K-250')
+    const price = prices.find((p) => p.material_id === beton.id)
+    expect(Number(price?.price)).toBe(800000)
+  })
+})
+
+test.describe('user flow: uraian menampilkan deskripsi item (#21)', () => {
+  test('kolom Uraian daily cashflow menampilkan items_desc bukan nama suplier', async () => {
+    await openCashflow()
+    const firstRow = win.locator('tbody tr').first()
+    await expect(firstRow).toContainText('Semen 50kg')
   })
 })
