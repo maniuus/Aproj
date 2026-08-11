@@ -180,7 +180,7 @@ export default function Cashflow({ onToast }: { onToast: (m: string) => void }) 
                     <Badge tone={isKeluar(n.jenis) ? 'red' : 'green'}>{jenisLabel(n.jenis)}</Badge>
                   </td>
                   <td className="px-4 py-2.5 text-zinc-600">
-                    {n.keterangan || n.suplier_name || n.subkon_name || '—'}
+                    {n.items_desc || n.keterangan || n.suplier_name || n.subkon_name || '—'}
                     {n.jenis === 'keluar-material' && n.suplier_name && <span className="text-zinc-400"> — {n.suplier_name}</span>}
                     {n.jenis === 'keluar-subkon' && n.subkon_name && <span className="text-zinc-400"> — {n.subkon_name}</span>}
                     {isKeluar(n.jenis) && (

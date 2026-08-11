@@ -93,6 +93,12 @@ export default function NotaModal({
   const [newPersonelName, setNewPersonelName] = useState('')
   const [newPersonelTenaga, setNewPersonelTenaga] = useState('')
   const [newPersonelUpah, setNewPersonelUpah] = useState('')
+  const [showNewMaster, setShowNewMaster] = useState(false)
+  const [newMasterType, setNewMasterType] = useState<'material' | 'pekerjaan' | 'alat'>('material')
+  const [newMasterName, setNewMasterName] = useState('')
+  const [newMasterSpec, setNewMasterSpec] = useState('')
+  const [newMasterUnit, setNewMasterUnit] = useState('')
+  const [newMasterPrice, setNewMasterPrice] = useState('')
   const [stagedPhotos, setStagedPhotos] = useState<{ fileName: string; dataUrl: string }[]>([])
   const [existingPhotos, setExistingPhotos] = useState<NotaPhoto[]>([])
   const [existingUrls, setExistingUrls] = useState<Record<string, string>>({})
@@ -101,6 +107,8 @@ export default function NotaModal({
   const closeRef = useRef<() => void>(() => {})
   const showPersonelRef = useRef(false)
   showPersonelRef.current = showNewPersonel
+  const showMasterRef = useRef(false)
+  showMasterRef.current = showNewMaster
 
   const isMaterial = jenis === 'keluar-material'
   const isPersonel = jenis === 'keluar-tenaga'
@@ -116,6 +124,7 @@ export default function NotaModal({
       if (e.key === 'Escape') {
         e.preventDefault()
         if (showPersonelRef.current) setShowNewPersonel(false)
+        else if (showMasterRef.current) setShowNewMaster(false)
         else closeRef.current()
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault()
@@ -398,6 +407,82 @@ export default function NotaModal({
     setNewPersonelName('')
   }
 
+  const quickAddMaster = async () => {
+    const name = newMasterName.trim()
+    const price = Number(newMasterPrice) || 0
+    if (!name) return
+    let row: MasterRow
+    if (newMasterType === 'material') {
+      row = await window.electronAPI.master.insert('materials', {
+        name,
+        spesifikasi: newMasterSpec.trim() || null,
+        unit: newMasterUnit.trim() || null,
+        notes: null
+      })
+      if (suplierId) {
+        await window.electronAPI.prices.upsert('material_prices', {
+          material_id: String(row.id),
+          suplier_id: suplierId,
+          price
+        })
+        setPrices((prev) => ({ ...prev, [`${row.id}:${suplierId}`]: price }))
+      }
+      setMaterials((prev) => [...prev, row])
+      setItems((prev) =>
+        prev.map((it) =>
+          it.item_type === 'material' && String(it.name).trim().toLowerCase() === name.toLowerCase()
+            ? { ...it, item_id: String(row.id), unit: newMasterUnit.trim() || it.unit, price, subtotal: (Number(it.qty) || 0) * price }
+            : it
+        )
+      )
+    } else if (newMasterType === 'pekerjaan') {
+      row = await window.electronAPI.master.insert('pekerjaans', {
+        name,
+        unit: newMasterUnit.trim() || null,
+        harga_satuan: price,
+        notes: null
+      })
+      setPekerjaans((prev) => [...prev, row])
+      setItems((prev) =>
+        prev.map((it) =>
+          it.item_type === 'pekerjaan' && String(it.name).trim().toLowerCase() === name.toLowerCase()
+            ? { ...it, item_id: String(row.id), unit: newMasterUnit.trim() || it.unit, price, subtotal: (Number(it.qty) || 0) * price }
+            : it
+        )
+      )
+    } else {
+      row = await window.electronAPI.master.insert('alats', {
+        name,
+        unit: newMasterUnit.trim() || null,
+        harga_satuan: price,
+        notes: null
+      })
+      setAlats((prev) => [...prev, row])
+      setItems((prev) =>
+        prev.map((it) =>
+          it.item_type === 'alat' && String(it.name).trim().toLowerCase() === name.toLowerCase()
+            ? { ...it, item_id: String(row.id), unit: newMasterUnit.trim() || it.unit, price, subtotal: (Number(it.qty) || 0) * price }
+            : it
+        )
+      )
+    }
+    onToast?.(`${newMasterType === 'material' ? 'Material' : newMasterType === 'pekerjaan' ? 'Pekerjaan' : 'Alat'} "${name}" tersimpan`)
+    setShowNewMaster(false)
+    setNewMasterName('')
+    setNewMasterSpec('')
+    setNewMasterUnit('')
+    setNewMasterPrice('')
+  }
+
+  const openQuickAddMaster = (it: RowState, type: 'material' | 'pekerjaan' | 'alat') => {
+    setNewMasterType(type)
+    setNewMasterName(it.name.trim())
+    setNewMasterSpec('')
+    setNewMasterUnit(it.unit || '')
+    setNewMasterPrice(it.price ? String(it.price) : '')
+    setShowNewMaster(true)
+  }
+
   const addPhotos = async () => {
     const rows = await window.electronAPI.photo.stage()
     if (rows.length) setStagedPhotos((prev) => [...prev, ...rows])
@@ -598,6 +683,12 @@ export default function NotaModal({
           const src = sourceFor(jenis)
           const isUnmatchedPersonel =
             it.item_type === 'personel' && it.name.trim() && !personels.some((p) => String(p.name).toLowerCase() === it.name.trim().toLowerCase())
+          const isUnmatchedMaterial =
+            it.item_type === 'material' && it.name.trim() && !materials.some((p) => String(p.name).toLowerCase() === it.name.trim().toLowerCase())
+          const isUnmatchedPekerjaan =
+            it.item_type === 'pekerjaan' && it.name.trim() && !pekerjaans.some((p) => String(p.name).toLowerCase() === it.name.trim().toLowerCase())
+          const isUnmatchedAlat =
+            it.item_type === 'alat' && it.name.trim() && !alats.some((p) => String(p.name).toLowerCase() === it.name.trim().toLowerCase())
 
           return (
             <div key={it.key} className="grid grid-cols-[2fr_64px_80px_100px_100px_24px] gap-2 items-center">
@@ -627,6 +718,30 @@ export default function NotaModal({
                       setNewPersonelName(it.name.trim())
                       setShowNewPersonel(true)
                     }}
+                    className="shrink-0 px-2 py-1.5 text-xs font-bold rounded bg-amber-50 text-amber-700 border border-amber-400 hover:bg-amber-100"
+                  >
+                    Simpan
+                  </button>
+                )}
+                {isUnmatchedMaterial && (
+                  <button
+                    onClick={() => openQuickAddMaster(it, 'material')}
+                    className="shrink-0 px-2 py-1.5 text-xs font-bold rounded bg-amber-50 text-amber-700 border border-amber-400 hover:bg-amber-100"
+                  >
+                    Simpan
+                  </button>
+                )}
+                {isUnmatchedPekerjaan && (
+                  <button
+                    onClick={() => openQuickAddMaster(it, 'pekerjaan')}
+                    className="shrink-0 px-2 py-1.5 text-xs font-bold rounded bg-amber-50 text-amber-700 border border-amber-400 hover:bg-amber-100"
+                  >
+                    Simpan
+                  </button>
+                )}
+                {isUnmatchedAlat && (
+                  <button
+                    onClick={() => openQuickAddMaster(it, 'alat')}
                     className="shrink-0 px-2 py-1.5 text-xs font-bold rounded bg-amber-50 text-amber-700 border border-amber-400 hover:bg-amber-100"
                   >
                     Simpan
@@ -787,6 +902,57 @@ export default function NotaModal({
                 onChange={(e) => setNewPersonelUpah(e.target.value)}
               />
             </Field>
+          </div>
+        </Modal>
+      )}
+
+      {showNewMaster && (
+        <Modal
+          open
+          onClose={() => setShowNewMaster(false)}
+          title={newMasterType === 'material' ? 'Material Baru' : newMasterType === 'pekerjaan' ? 'Pekerjaan Baru' : 'Alat Baru'}
+          footer={
+            <>
+              <span className="flex-1" />
+              <GhostButton onClick={() => setShowNewMaster(false)}>Batal</GhostButton>
+              <PrimaryButton onClick={quickAddMaster} disabled={!newMasterName.trim()}>
+                Simpan
+              </PrimaryButton>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <Field label="Nama" req>
+              <input
+                className={inputCls}
+                value={newMasterName}
+                onChange={(e) => setNewMasterName(e.target.value)}
+                placeholder={newMasterType === 'material' ? 'Nama material' : newMasterType === 'pekerjaan' ? 'Nama pekerjaan' : 'Nama alat'}
+              />
+            </Field>
+            {newMasterType === 'material' && (
+              <Field label="Spesifikasi">
+                <input className={inputCls} value={newMasterSpec} onChange={(e) => setNewMasterSpec(e.target.value)} placeholder="Contoh: 50kg" />
+              </Field>
+            )}
+            <Field label="Satuan">
+              <input className={inputCls} value={newMasterUnit} onChange={(e) => setNewMasterUnit(e.target.value)} placeholder="Contoh: sak, m3, batang" />
+            </Field>
+            <Field label={newMasterType === 'material' && suplierId ? `Harga per Suplier (Rp)` : `Harga Satuan (Rp)`}>
+              <input
+                className={inputCls}
+                type="number"
+                min="0"
+                value={newMasterPrice}
+                onChange={(e) => setNewMasterPrice(e.target.value)}
+                placeholder="0"
+              />
+            </Field>
+            {newMasterType === 'material' && suplierId && (
+              <p className="text-xs text-zinc-500">
+                Harga ini akan disimpan sebagai harga khusus untuk <b>{suplierName || 'suplier terpilih'}</b>.
+              </p>
+            )}
           </div>
         </Modal>
       )}

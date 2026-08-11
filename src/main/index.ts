@@ -564,7 +564,8 @@ function notaWhere(opts: { start?: string; end?: string; projectId?: string | nu
 
 ipcMain.handle('nota:list', (_e, opts: { start?: string; end?: string; projectId?: string | null; jenis?: string; limit?: number; offset?: number }) => {
   const [whereSql, params] = notaWhere(opts)
-  let sql = `SELECT n.*, p.name AS project_name, s.name AS suplier_name, k.name AS subkon_name
+  let sql = `SELECT n.*, p.name AS project_name, s.name AS suplier_name, k.name AS subkon_name,
+     (SELECT GROUP_CONCAT(ni.name, ', ') FROM nota_items ni WHERE ni.nota_id = n.id) AS items_desc
      FROM notas n
      LEFT JOIN projects p ON n.project_id = p.id
      LEFT JOIN supliers s ON n.suplier_id = s.id
