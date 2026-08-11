@@ -202,7 +202,8 @@ function runMigrations() {
     ['owner_id', 'TEXT'],
     ['subkon_id', 'TEXT'],
     ['durasi_mou', 'TEXT'],
-    ['resume', 'TEXT']
+    ['resume', 'TEXT'],
+    ['notes', 'TEXT']
   ])
   // projek dengan subkon_id tunggal (skema lama) → isi project_subkons
   const orphanSubkons = all(
