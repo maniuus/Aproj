@@ -362,3 +362,33 @@ test.describe('user flow: basis kas — tandai hutang terbayar dengan tanggal (#
     expect(after[0].paid_at).toBe(dmyToIso(payDate))
   })
 })
+
+test.describe('user flow: price list material per suplier (Master)', () => {
+  test('klik nama toko di tab Suplier → price list material + search field', async () => {
+    await openWorkspace()
+    await sidebar('Suplier')
+    await win.getByText('+ Tambah', { exact: true }).first().waitFor()
+
+    await win.getByRole('button', { name: /PT Sumber Jaya/ }).click()
+    await win.getByPlaceholder('Cari material…').waitFor({ timeout: 5000 })
+    await win.getByText('Semen 50kg', { exact: true }).waitFor()
+    await win.getByText('Besi Beton 10mm', { exact: true }).waitFor()
+    await win.getByText('Rp 65.000', { exact: true }).waitFor()
+    await win.getByText('Rp 52.000', { exact: true }).waitFor()
+
+    await win.getByPlaceholder('Cari material…').fill('Semen')
+    await expect(win.getByText('Besi Beton 10mm', { exact: true })).toHaveCount(0)
+    await win.getByText('Semen 50kg', { exact: true }).waitFor()
+  })
+
+  test('klik material di tab Material → muncul card suplier + harga', async () => {
+    await openWorkspace()
+    await sidebar('Suplier')
+    await win.locator('main').getByText('Material', { exact: true }).click()
+    await win.getByText('+ Material', { exact: true }).first().waitFor()
+
+    await win.locator('tbody tr').filter({ hasText: 'Semen 50kg' }).first().getByRole('button', { name: /Semen 50kg/ }).click()
+    await win.getByText('PT Sumber Jaya', { exact: true }).first().waitFor({ timeout: 5000 })
+    await win.getByText('Rp 65.000', { exact: true }).last().waitFor()
+  })
+})
