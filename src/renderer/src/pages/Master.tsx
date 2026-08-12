@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Card, CardBody, Field, GhostButton, Modal, PrimaryButton, DangerButton, MutedButton, Confirm, inputCls, EmptyNote, Badge } from '../components/ui'
 import { fmtRupiah, uid } from '../lib/utils'
 import type { MasterRow } from '../env.d'
@@ -52,7 +52,9 @@ export default function Master() {
           </button>
         ))}
       </div>
-      {tab === 'material' ? (
+      {tab === 'suplier' ? (
+        <SuplierTab />
+      ) : tab === 'material' ? (
         <MaterialTab />
       ) : tab === 'pekerja' ? (
         <PekerjaTab />
@@ -207,6 +209,196 @@ function SimpleCrudTab({ config }: { config: SimpleCrud }) {
   )
 }
 
+// ---------------- Suplier tab (dengan price list material per toko)
+
+function SuplierTab() {
+  const [rows, setRows] = useState<MasterRow[]>([])
+  const [prices, setPrices] = useState<MasterRow[]>([])
+  const [show, setShow] = useState(false)
+  const [editing, setEditing] = useState<MasterRow | null>(null)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [del, setDel] = useState<MasterRow | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+
+  const reload = () => {
+    window.electronAPI.master.list('supliers').then(setRows)
+    window.electronAPI.prices.list('material_prices').then(setPrices)
+  }
+
+  useEffect(reload, [])
+
+  const openAdd = () => {
+    setEditing(null)
+    setForm({})
+    setShow(true)
+  }
+
+  const openEdit = (row: MasterRow) => {
+    setEditing(row)
+    const f: Record<string, string> = {}
+    CONFIGS.suplier.fields.forEach((fld) => {
+      const v = row[fld.key]
+      f[fld.key] = v === null || v === undefined ? '' : String(v)
+    })
+    setForm(f)
+    setShow(true)
+  }
+
+  const submit = async () => {
+    const row: Record<string, unknown> = {}
+    CONFIGS.suplier.fields.forEach((fld) => {
+      const v = form[fld.key] ?? ''
+      row[fld.key] = fld.type === 'number' ? Number(v) || 0 : v.trim()
+    })
+    if (editing) await window.electronAPI.master.update(CONFIGS.suplier.table, editing.id, row)
+    else await window.electronAPI.master.insert(CONFIGS.suplier.table, row)
+    setShow(false)
+    reload()
+  }
+
+  return (
+    <Card>
+      <div className="px-4 py-3 border-b border-zinc-200 flex items-center justify-between">
+        <span className="text-sm font-semibold text-zinc-700">Suplier (Toko) — klik nama toko untuk price list</span>
+        <PrimaryButton onClick={openAdd} className="text-xs px-3 py-1.5">
+          + Tambah
+        </PrimaryButton>
+      </div>
+      {rows.length === 0 ? (
+        <CardBody>
+          <EmptyNote>Belum ada data</EmptyNote>
+        </CardBody>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-zinc-500 uppercase border-b border-zinc-200 text-left">
+              <th className="px-4 py-2.5">Nama Toko</th>
+              <th className="px-4 py-2.5">Nomor Telepon</th>
+              <th className="px-4 py-2.5">Alamat</th>
+              <th className="px-4 py-2.5">Jml Material</th>
+              <th className="px-4 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => {
+              const sPrices = prices.filter((p) => String(p.suplier_id) === String(s.id))
+              const open = expanded === String(s.id)
+              const filtered = open
+                ? sPrices.filter((p) =>
+                    String(p.material ?? '').toLowerCase().includes(query.trim().toLowerCase())
+                  )
+                : []
+              return (
+                <Fragment key={String(s.id)}>
+                  <tr className="border-b border-zinc-100 hover:bg-zinc-50">
+                    <td className="px-4 py-2.5">
+                      <button
+                        onClick={() => {
+                          setExpanded(open ? null : String(s.id))
+                          setQuery('')
+                        }}
+                        className="font-medium flex items-center gap-1.5 text-left hover:text-amber-700"
+                      >
+                        <span className="inline-block w-3 text-xs text-zinc-400">{open ? '▾' : '▸'}</span>
+                        {String(s.name)}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-600">{String(s.phone ?? '—')}</td>
+                    <td className="px-4 py-2.5 text-zinc-600">{String(s.address ?? '—')}</td>
+                    <td className="px-4 py-2.5">
+                      {sPrices.length ? <Badge tone="amber">{sPrices.length}</Badge> : <span className="text-zinc-400">0</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      <MutedButton onClick={() => openEdit(s)}>Edit</MutedButton>
+                      <DangerButton onClick={() => setDel(s)}>Hapus</DangerButton>
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr className="bg-amber-50/50">
+                      <td colSpan={5} className="px-4 py-3">
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <input
+                            className={`${inputCls} max-w-xs`}
+                            placeholder="Cari material…"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                          />
+                          {filtered.length > 0 && (
+                            <span className="text-xs text-zinc-400">{(sPrices.length ? filtered.length : 0)} material</span>
+                          )}
+                        </div>
+                        {filtered.length === 0 ? (
+                          <EmptyNote>Belum ada harga material untuk toko ini. Tambah di tab Material → “+ Harga Suplier”.</EmptyNote>
+                        ) : (
+                          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                            {filtered.map((p) => (
+                              <div key={String(p.id)} className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-zinc-800 truncate">{String(p.material)}</div>
+                                  <div className="text-xs text-zinc-400">{String(p.unit ?? '—')}</div>
+                                </div>
+                                <span className="text-emerald-600 font-semibold whitespace-nowrap">{fmtRupiah(Number(p.price) || 0)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      <Modal
+        open={show}
+        onClose={() => setShow(false)}
+        title={editing ? 'Edit Suplier' : '+ Tambah Suplier'}
+        footer={
+          <>
+            <span className="flex-1" />
+            <GhostButton onClick={() => setShow(false)}>Batal</GhostButton>
+            <PrimaryButton onClick={submit}>Simpan</PrimaryButton>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {CONFIGS.suplier.fields.map((f) => (
+            <Field key={f.key} label={f.label} req={f.key === 'name'}>
+              <input
+                className={inputCls}
+                type={f.type === 'number' ? 'number' : 'text'}
+                value={form[f.key] ?? ''}
+                onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
+              />
+            </Field>
+          ))}
+        </div>
+      </Modal>
+
+      <Confirm
+        open={!!del}
+        title="Hapus suplier"
+        message={`Yakin hapus "${del ? String(del.name ?? del.id) : ''}"? Harga material di toko ini ikut terhapus.`}
+        onCancel={() => setDel(null)}
+        onConfirm={() => {
+          if (!del) return
+          window.electronAPI.master
+            .remove('supliers', del.id)
+            .then(() => {
+              setDel(null)
+              reload()
+            })
+            .catch((e) => console.error('gagal hapus', e))
+        }}
+      />
+    </Card>
+  )
+}
+
 // ---------------- Material tab (dengan harga per suplier)
 
 function MaterialTab() {
@@ -219,6 +411,7 @@ function MaterialTab() {
   const [form, setForm] = useState<Record<string, string>>({})
   const [priceForm, setPriceForm] = useState({ material_id: '', suplier_id: '', price: '' })
   const [showPrice, setShowPrice] = useState(false)
+  const [expandedMat, setExpandedMat] = useState<string | null>(null)
 
   const reload = () => {
     window.electronAPI.master.list('materials').then(setMaterials)
@@ -292,38 +485,70 @@ function MaterialTab() {
             {materials.map((m) => {
               const mPrices = prices.filter((p) => p.material_id === m.id)
               const min = mPrices.reduce((s, p) => Math.min(s, Number(p.price) || 0), Infinity)
+              const open = expandedMat === String(m.id)
               return (
-                <tr key={m.id} className="border-b border-zinc-100 hover:bg-zinc-50">
-                  <td className="px-4 py-2.5 font-medium">{String(m.name)}</td>
-                  <td className="px-4 py-2.5 text-zinc-600">{String(m.spesifikasi ?? '—')}</td>
-                  <td className="px-4 py-2.5 text-zinc-600">{String(m.unit ?? '—')}</td>
-                  <td className="px-4 py-2.5 text-zinc-900">
-                    {mPrices.length ? (
-                      <span className="text-emerald-600 font-semibold">{fmtRupiah(min)}</span>
-                    ) : (
-                      <span className="text-zinc-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {mPrices.length ? <Badge tone="amber">{mPrices.length}</Badge> : <span className="text-zinc-400">0</span>}
-                  </td>
-                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                    <MutedButton
-                      onClick={() => {
-                        setEditMat(m)
-                        setForm({ name: String(m.name), spesifikasi: String(m.spesifikasi ?? ''), unit: String(m.unit ?? ''), notes: String(m.notes ?? '') })
-                        setShowMat(true)
-                      }}
-                    >
-                      Edit
-                    </MutedButton>
-                    <DangerButton
-                      onClick={() => setDelMat(m)}
-                    >
-                      Hapus
-                    </DangerButton>
-                  </td>
-                </tr>
+                <Fragment key={String(m.id)}>
+                  <tr className="border-b border-zinc-100 hover:bg-zinc-50">
+                    <td className="px-4 py-2.5">
+                      <button
+                        onClick={() => setExpandedMat(open ? null : String(m.id))}
+                        className="font-medium flex items-center gap-1.5 text-left hover:text-amber-700"
+                      >
+                        <span className="inline-block w-3 text-xs text-zinc-400">{open ? '▾' : '▸'}</span>
+                        {String(m.name)}
+                      </button>
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-600">{String(m.spesifikasi ?? '—')}</td>
+                    <td className="px-4 py-2.5 text-zinc-600">{String(m.unit ?? '—')}</td>
+                    <td className="px-4 py-2.5 text-zinc-900">
+                      {mPrices.length ? (
+                        <span className="text-emerald-600 font-semibold">{fmtRupiah(min)}</span>
+                      ) : (
+                        <span className="text-zinc-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {mPrices.length ? <Badge tone="amber">{mPrices.length}</Badge> : <span className="text-zinc-400">0</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      <MutedButton
+                        onClick={() => {
+                          setEditMat(m)
+                          setForm({ name: String(m.name), spesifikasi: String(m.spesifikasi ?? ''), unit: String(m.unit ?? ''), notes: String(m.notes ?? '') })
+                          setShowMat(true)
+                        }}
+                      >
+                        Edit
+                      </MutedButton>
+                      <DangerButton
+                        onClick={() => setDelMat(m)}
+                      >
+                        Hapus
+                      </DangerButton>
+                    </td>
+                  </tr>
+                  {open && (
+                    <tr className="bg-amber-50/50">
+                      <td colSpan={6} className="px-4 py-3">
+                        {mPrices.length === 0 ? (
+                          <EmptyNote>Belum ada harga suplier untuk material ini. Tambah lewat “+ Harga Suplier”.</EmptyNote>
+                        ) : (
+                          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                            {mPrices.map((p) => (
+                              <div key={String(p.id)} className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-zinc-800 truncate">{String(p.suplier)}</div>
+                                  <div className="text-xs text-zinc-400">{String(p.unit ?? '—')}</div>
+                                </div>
+                                <span className="text-emerald-600 font-semibold whitespace-nowrap">{fmtRupiah(Number(p.price) || 0)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
           </tbody>
